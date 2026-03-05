@@ -1,10 +1,14 @@
-from flask import Flask, render_template
+from flask import Flask, render_template, redirect, url_for
+
+from db import init_db, seed_db
 from routes.projects_page_route import projects_page_route
 
 
 def create_app() -> Flask:
     app = Flask(__name__)
     app.config["MAX_CONTENT_LENGTH"] = 100 * 1024 * 1024  # 100 MB
+
+    init_db()
 
     @app.route("/")
     @app.route("/projects")
@@ -18,5 +22,10 @@ def create_app() -> Flask:
     @app.route("/workflows")
     def workflows():
         return render_template("workflows.html", active_tab="workflows")
+
+    @app.route("/seed")
+    def seed():
+        seed_db()
+        return redirect(url_for("projects"))
 
     return app
