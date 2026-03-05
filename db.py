@@ -19,38 +19,20 @@ def init_db() -> None:
     conn = get_db()
     conn.executescript("""
         CREATE TABLE IF NOT EXISTS projects (
-            id          TEXT PRIMARY KEY,
-            name        TEXT NOT NULL,
-            description TEXT,
-            task_type   TEXT,
-            created_at  TEXT NOT NULL,
-            updated_at  TEXT NOT NULL
-        );
-
-        CREATE TABLE IF NOT EXISTS images (
-            id           TEXT PRIMARY KEY,
-            project_id   TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
-            filename     TEXT NOT NULL,
-            width        INTEGER,
-            height       INTEGER,
-            is_annotated INTEGER DEFAULT 0,
-            created_at   TEXT NOT NULL
-        );
-
-        CREATE TABLE IF NOT EXISTS labels (
-            id         TEXT PRIMARY KEY,
-            project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
-            name       TEXT NOT NULL,
-            color      TEXT NOT NULL
-        );
-
-        CREATE TABLE IF NOT EXISTS annotations (
-            id              TEXT PRIMARY KEY,
-            image_id        TEXT NOT NULL REFERENCES images(id) ON DELETE CASCADE,
-            label_id        TEXT REFERENCES labels(id) ON DELETE SET NULL,
-            type            TEXT NOT NULL,
-            data_json       TEXT NOT NULL,
-            created_at      TEXT NOT NULL
+            id            TEXT PRIMARY KEY,
+            name          TEXT NOT NULL,
+            status        TEXT DEFAULT 'active',
+            sort_order    INTEGER DEFAULT 0,
+            created_at    TEXT NOT NULL,
+            updated_at    TEXT NOT NULL,
+            type          TEXT NOT NULL,
+            train         INTEGER DEFAULT 0,
+            model_architecture TEXT,
+            description   TEXT,
+            configuration TEXT,
+            augmentation  TEXT,
+            preprocessing TEXT,
+            labels        TEXT
         );
     """)
     conn.close()
@@ -62,3 +44,49 @@ def now() -> str:
 
 def new_id() -> str:
     return str(uuid.uuid4())
+
+
+def seed_db() -> None:
+    """Insert sample projects. Additive — each call adds new rows."""
+    conn = get_db()
+    ts = now()
+
+    projects = [
+        ("Object Detection - Urban Scenes", "active", "object_detection", 0, "YOLOv8",
+         "Training dataset for detecting vehicles, pedestrians, and traffic signs in city environments.",
+         '{"batch_size": 32, "epochs": 100, "lr": 0.001}',
+         '{"horizontal_flip": true, "resize": 640, "mosaic": true}',
+         '{"normalize": true, "mean": [0.485, 0.456, 0.406], "std": [0.229, 0.224, 0.225]}',
+         '{"car": "#ff0000", "person": "#00ff00", "traffic sign": "#ffff00", "bike": "#0000ff"}'),
+        ("Medical Imaging - X-Ray", "active", "classification", 1, "ResNet50",
+         "Chest X-ray images annotated for pneumonia and fracture detection.",
+         '{"batch_size": 16, "epochs": 50, "lr": 0.0001}',
+         '{"random_rotation": 15, "random_crop": 0.1}',
+         '{"normalize": true, "mean": [127.5], "std": [127.5]}',
+         '{"pneumonia": "#ff0000", "fracture": "#ffaa00", "normal": "#00ff00"}'),
+        ("Satellite Imagery Analysis", "training", "segmentation", 1, "U-Net",
+         "Land use classification for agricultural monitoring and urban planning.",
+         '{"batch_size": 8, "epochs": 200, "lr": 0.00001}',
+         '{"color_jitter": 0.2, "random_rotation": 5}',
+         '{"normalize": true, "mean": [0.5], "std": [0.5]}',
+         '{"forest": "#228B22", "agriculture": "#90EE90", "urban": "#808080", "water": "#4169E1"}'),
+        ("Old Facial Recognition", "archived", "classification", 0, "FaceNet",
+         "Archived project for facial recognition - superseded by newer model.",
+         '{"batch_size": 32, "epochs": 100}',
+         '{"horizontal_flip": true}',
+         '{"normalize": true}',
+         '{"face": "#ffffff"}'),
+    ]
+
+    for name, status, ptype, train, arch, desc, conf, aug, pre, labels in projects:
+        conn.execute(
+            """INSERT INTO projects
+               (id, name, status, sort_order, created_at, updated_at,
+                type, train, model_architecture, description,
+                configuration, augmentation, preprocessing, labels)
+               VALUES (?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (new_id(), name, status, ts, ts, ptype, train, arch, desc, conf, aug, pre, labels),
+        )
+
+    conn.commit()
+    conn.close()
