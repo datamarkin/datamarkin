@@ -22,11 +22,17 @@ pip install py2app
 
 ## Run (Development)
 
+### Option 1: Flask Server (Browser Access)
+```bash
+python run_server.py
+```
+Starts a Flask server on `127.0.0.1:5001`. Open your browser to `http://localhost:5001` to access the app.
+
+### Option 2: PyWebView (Native Window)
 ```bash
 python main.py
 ```
-
-This starts a Flask server on `127.0.0.1:5001` and opens a native PyWebView window. The database and data directory (`~/Datamarkin/`) are created automatically on first run.
+Starts a Flask server on `127.0.0.1:5001` and opens a native PyWebView window. The database and data directory (`~/Datamarkin/`) are created automatically on first run.
 
 ## Build macOS .app
 
