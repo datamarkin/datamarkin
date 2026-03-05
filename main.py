@@ -14,7 +14,7 @@ if __name__ == "__main__":
     app = create_app()
     t = threading.Thread(target=run_flask, args=(app,), daemon=True)
     t.start()
-    webview.create_window(
+    window = webview.create_window(
         "Datamarkin",
         f"http://127.0.0.1:{config.FLASK_PORT}/projects",
         width=1280,

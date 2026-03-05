@@ -9,11 +9,100 @@ html, body {
     overflow: hidden;
 }
 
-.app-layout {
+/* ---- Shell layout ---- */
+.app-shell {
     display: flex;
+    flex-direction: column;
     height: 100vh;
 }
 
+.app-body {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+}
+
+/* ---- Titlebar ---- */
+.titlebar {
+    height: 48px;
+    display: flex;
+    align-items: center;
+    background: #f0f0f0;
+    border-bottom: 1px solid #ddd;
+    -webkit-app-region: drag;
+    flex-shrink: 0;
+    padding: 0 16px;
+}
+
+.titlebar-left {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.titlebar-center {
+    flex: 1;
+    display: flex;
+    justify-content: center;
+}
+
+.titlebar-right {
+    width: 120px;
+}
+
+/* ---- Nav arrows ---- */
+.nav-arrow {
+    -webkit-app-region: no-drag;
+    background: none;
+    border: none;
+    color: #555;
+    cursor: pointer;
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+    transition: background 0.15s;
+}
+
+.nav-arrow:hover {
+    background: rgba(0, 0, 0, 0.08);
+    color: #111;
+}
+
+/* ---- Tab pills ---- */
+.tab-pills {
+    display: flex;
+    gap: 2px;
+    background: rgba(0, 0, 0, 0.06);
+    border-radius: 8px;
+    padding: 3px;
+}
+
+.tab-pill {
+    -webkit-app-region: no-drag;
+    text-decoration: none;
+    color: #666;
+    font-size: 13px;
+    font-weight: 500;
+    padding: 5px 14px;
+    border-radius: 6px;
+    transition: background 0.15s, color 0.15s, box-shadow 0.15s;
+    cursor: pointer;
+}
+
+.tab-pill:hover {
+    color: #333;
+}
+
+.tab-pill.is-active {
+    background: #fff;
+    color: #111;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+/* ---- Sidebar ---- */
 .sidebar {
     width: 220px;
     background: #1a1a2e;
@@ -61,6 +150,7 @@ html, body {
     padding: 12px;
 }
 
+/* ---- Main content ---- */
 .main-content {
     flex: 1;
     overflow-y: auto;

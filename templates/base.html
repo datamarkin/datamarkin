@@ -8,20 +8,44 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/custom.css') }}">
 </head>
 <body>
-    <div class="app-layout">
-        <aside class="sidebar">
-            <div class="sidebar-logo">DATAMARKIN</div>
-            <nav class="sidebar-nav">
-                <a href="/projects" class="sidebar-link is-active">Projects</a>
-                <a href="/inference" class="sidebar-link">Inference</a>
-            </nav>
-            <div class="sidebar-footer">
-                <a href="/settings" class="sidebar-link">Settings</a>
+    <div class="app-shell">
+        <div class="titlebar">
+            <div class="titlebar-left">
+                <button class="nav-arrow" onclick="window.history.back()" title="Back">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                        <path d="M10 3L5 8L10 13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                </button>
+                <button class="nav-arrow" onclick="window.history.forward()" title="Forward">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                        <path d="M6 3L11 8L6 13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                </button>
             </div>
-        </aside>
-        <main class="main-content">
-            {% block content %}{% endblock %}
-        </main>
+            <div class="titlebar-center">
+                <nav class="tab-pills">
+                    <a href="/projects" class="tab-pill {{ 'is-active' if active_tab == 'projects' }}">Projects</a>
+                    <a href="/model-zoo" class="tab-pill {{ 'is-active' if active_tab == 'model_zoo' }}">Model Zoo</a>
+                    <a href="/workflows" class="tab-pill {{ 'is-active' if active_tab == 'workflows' }}">Workflows</a>
+                </nav>
+            </div>
+            <div class="titlebar-right"></div>
+        </div>
+        <div class="app-body">
+            <aside class="sidebar">
+                <div class="sidebar-logo">DATAMARKIN</div>
+                <nav class="sidebar-nav">
+                    <a href="/projects" class="sidebar-link {{ 'is-active' if active_tab == 'projects' }}">Projects</a>
+                    <a href="/inference" class="sidebar-link">Inference</a>
+                </nav>
+                <div class="sidebar-footer">
+                    <a href="/settings" class="sidebar-link">Settings</a>
+                </div>
+            </aside>
+            <main class="main-content">
+                {% block content %}{% endblock %}
+            </main>
+        </div>
     </div>
 </body>
 </html>
