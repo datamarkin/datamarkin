@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block title %}Datamarkin{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/bulma.min.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/custom.css') }}">
+</head>
+<body>
+    <div class="app-layout">
+        <aside class="sidebar">
+            <div class="sidebar-logo">DATAMARKIN</div>
+            <nav class="sidebar-nav">
+                <a href="/projects" class="sidebar-link is-active">Projects</a>
+                <a href="/inference" class="sidebar-link">Inference</a>
+            </nav>
+            <div class="sidebar-footer">
+                <a href="/settings" class="sidebar-link">Settings</a>
+            </div>
+        </aside>
+        <main class="main-content">
+            {% block content %}{% endblock %}
+        </main>
+    </div>
+</body>
+</html>
