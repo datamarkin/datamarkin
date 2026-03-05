@@ -1,4 +1,5 @@
-from flask import Flask, render_template
+from flask import Flask, render_template, send_file, abort
+from config import DATA_DIR
 
 from db import init_db
 from routes.projects_page_route import projects_page_route, project_detail_route
@@ -26,5 +27,12 @@ def create_app() -> Flask:
     @app.route("/workflows")
     def workflows():
         return render_template("workflows.html", active_tab="workflows")
+
+    @app.route("/projects/<project_id>/images/<filename>")
+    def serve_project_image(project_id, filename):
+        filepath = DATA_DIR / "projects" / project_id / "images" / filename
+        if not filepath.exists():
+            abort(404)
+        return send_file(filepath)
 
     return app
