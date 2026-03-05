@@ -3,10 +3,78 @@
 {% block title %}Projects — Datamarkin{% endblock %}
 
 {% block content %}
-<section class="section">
-    <div class="container">
-        <h1 class="title">Hello {{ app_name }}</h1>
-        <p class="subtitle">Your projects will appear here.</p>
-    </div>
-</section>
+    <section class="section">
+        <div class="container">
+            <div class="content">
+                <h1 class="is-size-1">Your projects:</h1>
+                <div id="projects" class="columns is-multiline project-items">
+                    <div class="column is-6 project-item">
+                        <a title="Project name" href="/project/47f9cc90-5e04-46ef-9d76-74518e477b97"
+                           class="media box box-with-border p-4">
+                            <figure class="media-left">
+                                <p class="image is-64x64">
+                                    {% include 'icons/plus.svg' %}
+                                </p>
+                            </figure>
+                            <div class="media-content">
+                                <div class="content">
+                                    <p><strong>Create a project</strong> <br> <small>You haven't created any projects
+                                        yet. Get started by creating your first project.
+                                    </small></p>
+                                </div>
+                            </div>
+                        </a>
+                    </div>
+                    <div class="column is-6 project-item">
+                        <a title="Project name" href="/project/123"
+                           class="media box box-with-border p-4">
+                            <figure class="media-left">
+                                <p class="image is-64x64">
+                                    <img style="border-radius: 4px;"
+                                         src="{{ url_for('static', filename='images/pexels-pixabay-276551.jpg') }}">
+                                </p>
+                            </figure>
+                            <div class="media-content">
+                                <div class="content">
+                                    <p><strong>Project name</strong> <br> <small>Project doesn't have a
+                                        description</small></p>
+                                </div>
+                            </div>
+                        </a>
+                    </div>
+                    <div class="column is-6 project-item">
+                        <a title="Project name" href="/project/123"
+                           class="media box box-with-border p-4">
+                            <figure class="media-left">
+                                <p class="image is-64x64">
+                                    <img style="border-radius: 4px;"
+                                         src="{{ url_for('static', filename='images/pexels-pixabay-276551.jpg') }}">
+                                </p>
+                            </figure>
+                            <div class="media-content">
+                                <div class="content">
+                                    <p><strong>Project name</strong> <br> <small>Project doesn't have a
+                                        description</small></p>
+                                </div>
+                            </div>
+                        </a>
+                    </div>
+                </div>
+                <hr>
+                <div class="buttons is-centered">
+{#                    <a href="/" class="button is-small is-app">#}
+{#                        <span class="icon is-small">#}
+{#                            {% include 'icons/globe-alt.svg' %}#}
+{#                        </span>#}
+{#                        <span>Public projects</span></a>#}
+
+                    <a href="/" class="button is-small is-app">
+                        <span class="icon is-small">
+                            {% include 'icons/academic-cap.svg' %}
+                        </span>
+                        <span>Learn</span></a>
+                </div>
+            </div>
+        </div>
+    </section>
 {% endblock %}

@@ -10,6 +10,36 @@ html, body {
     background-color: #fffdf7;
 }
 
+@font-face {
+    font-family: "Libre Baskerville Bold";
+    src: url('/static/fonts/LibreBaskerville-Bold.ttf') format('truetype');
+    font-weight: 900;
+    font-style: normal;
+    font-display: swap; /* Improves loading performance */
+}
+
+h1, h2, h3, h4, h5, h6 {
+    font-family: "Libre Baskerville Bold", sans-serif;
+}
+
+.box {
+    box-shadow: rgba(0, 0, 0, 0.02) 0px 1px 3px 0px, rgba(27, 31, 35, 0.15) 0px 0px 0px 1px;
+}
+
+.button.is-app {
+    background: unset;
+    border-color: #f7ecd9;
+    box-shadow: none;
+}
+
+.button.is-app:hover {
+    background: rgba(0, 0, 0, 0.06);
+}
+
+hr {
+    height: 1px;
+}
+
 /* ---- Shell layout ---- */
 .app-shell {
     display: flex;
@@ -103,57 +133,8 @@ html, body {
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
-/* ---- Sidebar ---- */
-.sidebar {
-    width: 220px;
-    background: #1a1a2e;
-    color: #fff;
-    display: flex;
-    flex-direction: column;
-    flex-shrink: 0;
-}
-
-.sidebar-logo {
-    padding: 24px 20px;
-    font-size: 18px;
-    font-weight: 700;
-    letter-spacing: 1px;
-}
-
-.sidebar-nav {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    padding: 0 12px;
-}
-
-.sidebar-link {
-    color: #a0a0b8;
-    text-decoration: none;
-    padding: 10px 12px;
-    border-radius: 6px;
-    font-size: 15px;
-    transition: background 0.15s, color 0.15s;
-}
-
-.sidebar-link:hover {
-    background: rgba(255, 255, 255, 0.08);
-    color: #fff;
-}
-
-.sidebar-link.is-active {
-    background: rgba(255, 255, 255, 0.12);
-    color: #fff;
-    font-weight: 600;
-}
-
-.sidebar-footer {
-    padding: 12px;
-}
-
 /* ---- Main content ---- */
 .main-content {
     flex: 1;
     overflow-y: auto;
-    background: #f5f5f5;
 }
