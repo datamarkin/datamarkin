@@ -20,5 +20,7 @@ if __name__ == "__main__":
         width=1280,
         height=800,
         min_size=(900, 600),
-    )
+        # frameless=True,
+        # easy_drag=False
+            )
     webview.start()
