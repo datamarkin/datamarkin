@@ -34,6 +34,16 @@ python main.py
 ```
 Starts a Flask server on `127.0.0.1:5001` and opens a native PyWebView window. The database and data directory (`~/Datamarkin/`) are created automatically on first run.
 
+## Seed Sample Data
+
+```bash
+# Seed database with sample projects and download images from picsum.photos
+python scripts/seed.py
+
+# Fresh seed (deletes existing DB and project folders first)
+python scripts/seed.py --fresh
+```
+
 ## Build macOS .app
 
 ```bash
@@ -96,6 +106,8 @@ datamarkin/
   app.py                  ← Flask app factory
   config.py               ← paths, constants
   db.py                   ← SQLite schema + helpers
+  scripts/
+    seed.py               ← seed DB with sample data + images
   build_macos.py          ← py2app build script
   requirements.txt
   routes/
