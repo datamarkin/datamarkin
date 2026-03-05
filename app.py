@@ -1,6 +1,6 @@
-from flask import Flask, render_template, redirect, url_for
+from flask import Flask, render_template
 
-from db import init_db, seed_db
+from db import init_db
 from routes.projects_page_route import projects_page_route
 
 
@@ -22,10 +22,5 @@ def create_app() -> Flask:
     @app.route("/workflows")
     def workflows():
         return render_template("workflows.html", active_tab="workflows")
-
-    @app.route("/seed")
-    def seed():
-        seed_db()
-        return redirect(url_for("projects"))
 
     return app
