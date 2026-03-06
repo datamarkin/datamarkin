@@ -1,14 +1,16 @@
 #!/usr/bin/env python3
 """Seed database with sample projects and download images from picsum.photos."""
 
-import argparse, json, os, shutil, sys, urllib.request
+import argparse, json, os, random, shutil, sys, urllib.request
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from config import DATA_DIR, DB_PATH, FILES_DIR, file_path
 from db import init_db, get_db, now, new_id
 
-PICSUM_LIST_URL = "https://picsum.photos/v2/list?page=2&limit=100"
+PICSUM_LIST_URLS = [
+    f"https://picsum.photos/v2/list?page={p}&limit=100" for p in range(1, 4)
+]
 
 PROJECTS = [
     {
@@ -22,11 +24,8 @@ PROJECTS = [
         "augmentation": '{"horizontal_flip": true, "resize": 640, "mosaic": true}',
         "preprocessing": '{"normalize": true, "mean": [0.485, 0.456, 0.406], "std": [0.229, 0.224, 0.225]}',
         "labels": '{"car": "#ff0000", "person": "#00ff00", "traffic sign": "#ffff00", "bike": "#0000ff"}',
-        "images": [
-            {"w": 640, "h": 480, "split": "train"},
-            {"w": 640, "h": 480, "split": "train"},
-            {"w": 640, "h": 480, "split": "val"},
-        ],
+        "image_count": (50, 70),
+        "splits": ["train", "train", "train", "val"],
     },
     {
         "name": "Medical Imaging - X-Ray",
@@ -39,10 +38,8 @@ PROJECTS = [
         "augmentation": '{"random_rotation": 15, "random_crop": 0.1}',
         "preprocessing": '{"normalize": true, "mean": [127.5], "std": [127.5]}',
         "labels": '{"pneumonia": "#ff0000", "fracture": "#ffaa00", "normal": "#00ff00"}',
-        "images": [
-            {"w": 512, "h": 512, "split": "train"},
-            {"w": 512, "h": 512, "split": "test"},
-        ],
+        "image_count": (40, 60),
+        "splits": ["train", "train", "train", "test"],
     },
     {
         "name": "Satellite Imagery Analysis",
@@ -55,9 +52,8 @@ PROJECTS = [
         "augmentation": '{"color_jitter": 0.2, "random_rotation": 5}',
         "preprocessing": '{"normalize": true, "mean": [0.5], "std": [0.5]}',
         "labels": '{"forest": "#228B22", "agriculture": "#90EE90", "urban": "#808080", "water": "#4169E1"}',
-        "images": [
-            {"w": 800, "h": 600, "split": "train"},
-        ],
+        "image_count": (30, 50),
+        "splits": ["train", "train", "val"],
     },
     {
         "name": "Old Facial Recognition",
@@ -70,19 +66,23 @@ PROJECTS = [
         "augmentation": '{"horizontal_flip": true}',
         "preprocessing": '{"normalize": true}',
         "labels": '{"face": "#ffffff"}',
-        "images": [],
+        "image_count": (30, 40),
+        "splits": ["train", "train", "train", "val"],
     },
 ]
 
 
 def fetch_picsum_list():
-    """Fetch image list from picsum API and return as list of dicts."""
-    print("Fetching picsum image list...")
-    req = urllib.request.Request(PICSUM_LIST_URL, headers={"User-Agent": "datamarkin-seed/1.0"})
-    with urllib.request.urlopen(req) as resp:
-        data = json.loads(resp.read().decode())
-    print(f"  Got {len(data)} images from picsum")
-    return data
+    """Fetch image list from picsum API across multiple pages."""
+    all_images = []
+    for url in PICSUM_LIST_URLS:
+        print(f"Fetching picsum image list from {url}...")
+        req = urllib.request.Request(url, headers={"User-Agent": "datamarkin-seed/1.0"})
+        with urllib.request.urlopen(req) as resp:
+            data = json.loads(resp.read().decode())
+        all_images.extend(data)
+        print(f"  Got {len(data)} images (total: {len(all_images)})")
+    return all_images
 
 
 def download_image(picsum_id, width, height, dest_path):
@@ -142,16 +142,20 @@ def seed(fresh=False):
             ),
         )
 
-        for img_def in proj_def["images"]:
+        count = random.randint(*proj_def["image_count"])
+        print(f"  Downloading {count} images...")
+        for i in range(count):
             file_id = new_id()
-            picsum_id = picsum_images[img_idx]["id"]
+            pic = picsum_images[img_idx % len(picsum_images)]
             img_idx += 1
+            split = random.choice(proj_def["splits"])
+            w, h = int(pic["width"]), int(pic["height"])
 
             dest = file_path(f"{file_id}.jpg")
             dest.parent.mkdir(parents=True, exist_ok=True)
 
-            print(f"  Downloading picsum #{picsum_id} ({img_def['w']}x{img_def['h']}) -> {dest.name}")
-            download_image(picsum_id, img_def["w"], img_def["h"], dest)
+            print(f"  [{i+1}/{count}] Downloading picsum #{pic['id']} ({w}x{h}) -> {dest.name}")
+            download_image(pic["id"], w, h, dest)
             filesize = dest.stat().st_size
 
             conn.execute(
@@ -164,11 +168,11 @@ def seed(fresh=False):
                     proj_id,
                     f"{file_id}.jpg",
                     ".jpg",
-                    img_def["w"],
-                    img_def["h"],
+                    w,
+                    h,
                     filesize,
                     0,
-                    img_def["split"],
+                    split,
                     ts,
                     ts,
                 ),
