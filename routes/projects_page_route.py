@@ -1,6 +1,6 @@
 from flask import render_template, abort
 
-from queries import get_all_projects, get_project_by_id, get_project_files
+from queries import get_all_projects, get_project_by_id, get_project_files, get_file_by_id
 
 
 def projects_page_route(app_name):
@@ -12,7 +12,7 @@ def projects_page_route(app_name):
     )
 
 
-def project_detail_route(project_id: str):
+def project_page_route(project_id: str):
     project = get_project_by_id(project_id)
     if not project:
         abort(404)
@@ -20,9 +20,33 @@ def project_detail_route(project_id: str):
     files = get_project_files(project_id)
 
     return render_template(
-        "project_detail.html",
+        "project.html",
         app_name="Datamarkin",
         active_tab="project_detail",
         project=project,
         files=files,
+    )
+
+
+def project_image_page_route(project_id: str, file_id: str):
+    project = get_project_by_id(project_id)
+    if not project:
+        abort(404)
+
+    files = get_project_files(project_id)
+
+    current_file = get_file_by_id(file_id)
+    if not current_file:
+        abort(404)
+
+    current_index = next(
+        (i for i, f in enumerate(files) if f["id"] == file_id), 0
+    )
+
+    return render_template(
+        "project_image.html",
+        project=project,
+        files=files,
+        current_file=current_file,
+        current_index=current_index,
     )

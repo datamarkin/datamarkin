@@ -11,6 +11,7 @@
 
 
 <div class="app-shell">
+    {% block titlebar %}
     <div class="titlebar">
         <div class="titlebar-left">
             <button class="button is-small is-text" onclick="window.history.back()" title="Back">
@@ -31,6 +32,7 @@
         </div>
         <div class="titlebar-right"></div>
     </div>
+    {% endblock %}
     <div class="app-body">
 {#        <aside class="sidebar">#}
 {#            <div class="sidebar-logo">DATAMARKIN</div>#}

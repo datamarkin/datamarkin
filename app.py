@@ -3,7 +3,7 @@ from config import file_path
 
 from db import init_db
 from queries import get_file_by_id
-from routes.projects_page_route import projects_page_route, project_detail_route
+from routes.projects_page_route import projects_page_route, project_page_route, project_image_page_route
 
 
 def create_app() -> Flask:
@@ -19,7 +19,11 @@ def create_app() -> Flask:
 
     @app.route("/project/<project_id>")
     def project_detail(project_id):
-        return project_detail_route(project_id)
+        return project_page_route(project_id)
+
+    @app.route("/project/<project_id>/annotate/<file_id>")
+    def annotate(project_id, file_id):
+        return project_image_page_route(project_id, file_id)
 
     @app.route("/model-zoo")
     def model_zoo():
