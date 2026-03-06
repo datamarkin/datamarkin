@@ -1,5 +1,6 @@
-from flask import Flask, render_template, send_file, abort
+from flask import Flask, render_template, send_file, abort, request
 from config import file_path
+from thumbnails import PRESETS, get_or_create_thumb
 
 from db import init_db
 from queries import get_file_by_id
@@ -41,6 +42,14 @@ def create_app() -> Flask:
         filepath = file_path(file_row["filename"])
         if not filepath.exists():
             abort(404)
+
+        key = request.args.get("key")
+        if key is not None:
+            if key not in PRESETS:
+                abort(400)
+            thumb = get_or_create_thumb(filepath, file_id, key)
+            return send_file(thumb, mimetype="image/jpeg")
+
         return send_file(filepath)
 
     return app

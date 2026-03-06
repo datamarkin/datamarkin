@@ -87,7 +87,7 @@
                         <a href="/project/{{ project.id }}/annotate/{{ file.id }}" class="card">
                             <div class="card-image">
                                 <figure class="image is-4by3">
-                                    <img src="{{ url_for('serve_file', file_id=file.id) }}"
+                                    <img src="{{ url_for('serve_file', file_id=file.id, key='small') }}"
                                          alt="{{ file.filename }}" loading="lazy">
                                 </figure>
                                 {% if file.is_annotated %}
