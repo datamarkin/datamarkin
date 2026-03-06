@@ -32,28 +32,35 @@
 
 {% block sidebar %}
     <aside class="app-sidebar">
-        <div class="app-sidebar-body">
+        <div class="app-sidebar-header">
             <div class="sidebar-section">
                 <div class="drop-zone" id="drop-zone">
-{#                    <span class="drop-zone-icon">+</span>#}
+                    {#                    <span class="drop-zone-icon">+</span>#}
                     <span class="drop-zone-text">Drop images here</span>
                 </div>
             </div>
-            <hr>
+        </div>
+        <div class="app-sidebar-body">
             <div class="sidebar-section">
                 <p class="sidebar-heading">Labels</p>
                 <div id="label-filters"></div>
             </div>
             <hr>
             <div class="sidebar-section">
+                <p class="sidebar-heading">Buttons</p>
+                <button class="button is-small is-dark is-fullwidth">a</button>
+            </div>
+            <hr>
+            <div class="sidebar-section">
                 <p class="sidebar-heading">Split</p>
-                <nav class="tab-pills"">
-                    <a class="tab-pill is-active" data-split="all">All <span class="tag is-small"
-                                                                             id="count-all">{{ files|length }}</span></a>
-                    <a class="tab-pill" data-split="train">Train <span class="tag is-small"
-                                                                       id="count-train">0</span></a>
-                    <a class="tab-pill" data-split="val">Val <span class="tag is-small" id="count-val">0</span></a>
-                    <a class="tab-pill" data-split="test">Test <span class="tag is-small" id="count-test">0</span></a>
+                <nav class="tab-pills"
+                ">
+                <a class="tab-pill is-active" data-split="all">All <span class="tag is-small"
+                                                                         id="count-all">{{ files|length }}</span></a>
+                <a class="tab-pill" data-split="train">Train <span class="tag is-small"
+                                                                   id="count-train">0</span></a>
+                <a class="tab-pill" data-split="val">Val <span class="tag is-small" id="count-val">0</span></a>
+                <a class="tab-pill" data-split="test">Test <span class="tag is-small" id="count-test">0</span></a>
                 </nav>
             </div>
         </div>
@@ -82,9 +89,9 @@
                                     <span class="annotated-badge" title="Annotated">&#10003;</span>
                                 {% endif %}
                             </div>
-{#                            <div class="card-content">#}
-{#                                <p class="has-text-truncated is-size-7">{{ file.filename }}</p>#}
-{#                            </div>#}
+                            {#                            <div class="card-content">#}
+                            {#                                <p class="has-text-truncated is-size-7">{{ file.filename }}</p>#}
+                            {#                            </div>#}
                         </a>
                     </div>
                 {% endfor %}
@@ -159,95 +166,111 @@
             {#    pill.classList.add('is-active');#}
             {#    activeSplit = pill.dataset.split;#}
             {#    applyFilters();#}
-            {#});#}
+            {#})
+                ;
+                #}
 
-            {#document.getElementById('status-pills').addEventListener('click', function (e) {#}
-            {#    var pill = e.target.closest('.tab-pill');#}
-            {#    if (!pill) return;#}
-            {#    e.preventDefault();#}
-            {#    this.querySelectorAll('.tab-pill').forEach(function (p) {#}
-            {#        p.classList.remove('is-active');#}
-            {#    });#}
-            {#    pill.classList.add('is-active');#}
-            {#    applyFilters();#}
-            {#});#}
+                {#document.getElementById('status-pills').addEventListener('click', function (e) {#}
+                {#    var pill = e.target.closest('.tab-pill');#}
+                {#    if (!pill) return;#}
+                {#    e.preventDefault();#}
+                {#    this.querySelectorAll('.tab-pill').forEach(function (p) {#}
+                {#        p.classList.remove('is-active');#}
+                {#    });#}
+                {#    pill.classList.add('is-active');#}
+                {#    applyFilters();#}
+                {#})
+                    ;
+                    #}
 
-            labelContainer.addEventListener('change', applyFilters);
+                    labelContainer.addEventListener('change', applyFilters);
 
-            function applyFilters() {
-                var statusVal = document.querySelector('[data-status]').dataset.status || 'all';
-                var checkedLabels = [];
-                document.querySelectorAll('#label-filters input[type="checkbox"]:checked').forEach(function (cb) {
-                    checkedLabels.push(cb.dataset.label);
-                });
+                    function applyFilters() {
+                        var statusVal = document.querySelector('[data-status]').dataset.status || 'all';
+                        var checkedLabels = [];
+                        document.querySelectorAll('#label-filters input[type="checkbox"]:checked').forEach(function (cb) {
+                            checkedLabels.push(cb.dataset.label);
+                        });
 
-                var visibleCount = 0;
-                cards.forEach(function (card) {
-                    var show = true;
+                        var visibleCount = 0;
+                        cards.forEach(function (card) {
+                            var show = true;
 
-                    // Split filter
-                    if (activeSplit !== 'all' && card.dataset.split !== activeSplit) show = false;
+                            // Split filter
+                            if (activeSplit !== 'all' && card.dataset.split !== activeSplit) show = false;
 
-                    // Status filter
-                    if (statusVal === 'annotated' && card.dataset.annotated !== '1') show = false;
-                    if (statusVal === 'pending' && card.dataset.annotated !== '0') show = false;
+                            // Status filter
+                            if (statusVal === 'annotated' && card.dataset.annotated !== '1') show = false;
+                            if (statusVal === 'pending' && card.dataset.annotated !== '0') show = false;
 
-                    // Label filter
-                    if (checkedLabels.length > 0 && checkedLabels.length < Object.keys(labels).length) {
-                        var cardLabels = card.dataset.labels;
-                        if (cardLabels) {
-                            var hasMatch = checkedLabels.some(function (l) {
-                                return cardLabels.indexOf(l) !== -1;
-                            });
-                            if (!hasMatch) show = false;
+                            // Label filter
+                            if (checkedLabels.length > 0 && checkedLabels.length < Object.keys(labels).length) {
+                                var cardLabels = card.dataset.labels;
+                                if (cardLabels) {
+                                    var hasMatch = checkedLabels.some(function (l) {
+                                        return cardLabels.indexOf(l) !== -1;
+                                    });
+                                    if (!hasMatch) show = false;
+                                }
+                            }
+
+                            card.classList.toggle('is-hidden-filter', !show);
+                            if (show) visibleCount++;
+                        });
+
+                        var emptyState = document.getElementById('empty-state');
+                        if (visibleCount === 0) {
+                            emptyState.classList.remove('is-hidden');
+                        } else {
+                            emptyState.classList.add('is-hidden');
                         }
                     }
 
-                    card.classList.toggle('is-hidden-filter', !show);
-                    if (show) visibleCount++;
-                });
+                    // --- Settings modal ---
+                    var modal = document.getElementById('settings-modal');
+                    var configRaw = {{ project.configuration | tojson }};
+                    var augRaw = {{ project.augmentation | tojson }};
+                    var preRaw = {{ project.preprocessing | tojson }};
 
-                var emptyState = document.getElementById('empty-state');
-                if (visibleCount === 0) {
-                    emptyState.classList.remove('is-hidden');
-                } else {
-                    emptyState.classList.add('is-hidden');
+                    function prettyJSON(raw) {
+                        try {
+                            return JSON.stringify(JSON.parse(raw), null, 2);
+                        } catch (e) {
+                            return raw || '{}';
+                        }
+                    }
+
+                    document.getElementById('settings-config').textContent = prettyJSON(configRaw);
+                    document.getElementById('settings-augmentation').textContent = prettyJSON(augRaw);
+                    document.getElementById('settings-preprocessing').textContent = prettyJSON(preRaw);
+
+                    document.getElementById('settings-btn').addEventListener('click', function () {
+                        modal.classList.add('is-active');
+                    });
+                    modal.querySelector('.modal-background').addEventListener('click', function () {
+                        modal.classList.remove('is-active');
+                    });
+                    modal.querySelector('.delete').addEventListener('click', function () {
+                        modal.classList.remove('is-active');
+                    });
+                    // --- Drop zone drag-over feedback ---
+                    var dropZone = document.getElementById('drop-zone');
+                    dropZone.addEventListener('dragenter', function (e) {
+                        e.preventDefault();
+                        dropZone.classList.add('is-dragover');
+                    });
+                    dropZone.addEventListener('dragover', function (e) {
+                        e.preventDefault();
+                    });
+                    dropZone.addEventListener('dragleave', function () {
+                        dropZone.classList.remove('is-dragover');
+                    });
+                    dropZone.addEventListener('drop', function (e) {
+                        e.preventDefault();
+                        dropZone.classList.remove('is-dragover');
+                    });
                 }
-            }
-
-            // --- Settings modal ---
-            var modal = document.getElementById('settings-modal');
-            var configRaw = {{ project.configuration | tojson }};
-            var augRaw = {{ project.augmentation | tojson }};
-            var preRaw = {{ project.preprocessing | tojson }};
-
-            function prettyJSON(raw) {
-                try {
-                    return JSON.stringify(JSON.parse(raw), null, 2);
-                } catch (e) {
-                    return raw || '{}';
-                }
-            }
-
-            document.getElementById('settings-config').textContent = prettyJSON(configRaw);
-            document.getElementById('settings-augmentation').textContent = prettyJSON(augRaw);
-            document.getElementById('settings-preprocessing').textContent = prettyJSON(preRaw);
-
-            document.getElementById('settings-btn').addEventListener('click', function () {
-                modal.classList.add('is-active');
-            });
-            modal.querySelector('.modal-background').addEventListener('click', function () {
-                modal.classList.remove('is-active');
-            });
-            modal.querySelector('.delete').addEventListener('click', function () {
-                modal.classList.remove('is-active');
-            });
-            // --- Drop zone drag-over feedback ---
-            var dropZone = document.getElementById('drop-zone');
-            dropZone.addEventListener('dragenter', function(e) { e.preventDefault(); dropZone.classList.add('is-dragover'); });
-            dropZone.addEventListener('dragover', function(e) { e.preventDefault(); });
-            dropZone.addEventListener('dragleave', function() { dropZone.classList.remove('is-dragover'); });
-            dropZone.addEventListener('drop', function(e) { e.preventDefault(); dropZone.classList.remove('is-dragover'); });
-        })();
+            )
+                ();
     </script>
 {% endblock %}

@@ -175,6 +175,13 @@ hr {
     background: #faf8f4;
 }
 
+.app-sidebar-header {
+    flex-shrink: 0;
+    padding: 12px 16px;
+    border-bottom: 1px solid #eee;
+    font-size: 13px;
+}
+
 .app-sidebar-body {
     flex: 1;
     overflow-y: auto;
