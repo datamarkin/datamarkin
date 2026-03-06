@@ -1,3 +1,5 @@
+import json
+
 from flask import render_template, abort
 
 from queries import get_all_projects, get_project_by_id, get_project_files, get_file_by_id
@@ -43,10 +45,16 @@ def project_image_page_route(project_id: str, file_id: str):
         (i for i, f in enumerate(files) if f["id"] == file_id), 0
     )
 
+    try:
+        labels = json.loads(project["labels"]) or {}
+    except (json.JSONDecodeError, TypeError):
+        labels = {}
+
     return render_template(
         "project_image.html",
         project=project,
         files=files,
         current_file=current_file,
         current_index=current_index,
+        labels=labels,
     )

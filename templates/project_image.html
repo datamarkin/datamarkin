@@ -13,7 +13,6 @@
         </a>
     </div>
     <div class="titlebar-center">
-        <nav class="tab-pills" id="label-pills"></nav>
     </div>
     <div class="titlebar-right" style="text-align: right;">
         <span class="is-size-7 has-text-grey">{{ current_file.filename }}</span>
@@ -24,13 +23,24 @@
 
 {% block sidebar %}
     <aside class="app-sidebar">
+        <div class="app-sidebar-header">
+            <p class="sidebar-heading">Labels</p>
+            <div class="sidebar-label-list" id="label-list">
+                {% for name, color in labels.items() %}
+                <button class="button is-small is-app is-fullwidth is-justify-content-left sidebar-label-btn {{ 'is-active' if loop.first }}" data-label="{{ name }}">
+                    <span class="label-checkbox-color" style="background:{{ color }}"></span>
+                    <span>{{ name }}</span>
+                </button>
+                {% endfor %}
+            </div>
+        </div>
         <div class="app-sidebar-body">
             <div class="thumb-grid">
                 {% for file in files %}
                 <a href="/project/{{ project.id }}/annotate/{{ file.id }}" class="thumb-item {{ 'is-active' if file.id == current_file.id }}">
                     <img src="{{ url_for('serve_file', file_id=file.id) }}" alt="{{ file.filename }}" loading="lazy">
                     {% if file.is_annotated %}
-                    <span class="annotated-badge">&#10003;</span>
+                    <span class="annotated-badge annotated-badge-sm">&#10003;</span>
                     {% endif %}
                 </a>
                 {% endfor %}
@@ -50,25 +60,12 @@
 
 <script>
 (function() {
-    // Build label pills from project labels
-    var labelsRaw = {{ project.labels | tojson }};
-    var labels = {};
-    try { labels = JSON.parse(labelsRaw) || {}; } catch(e) {}
-
-    var pillContainer = document.getElementById('label-pills');
-    var names = Object.keys(labels);
-    names.forEach(function(name, i) {
-        var color = labels[name];
-        var pill = document.createElement('a');
-        pill.className = 'tab-pill' + (i === 0 ? ' is-active' : '');
-        pill.href = '#';
-        pill.innerHTML = '<span class="label-checkbox-color" style="background:' + color + '; border-radius: 50%; margin-right: 4px;"></span>' + name;
-        pill.addEventListener('click', function(e) {
-            e.preventDefault();
-            pillContainer.querySelectorAll('.tab-pill').forEach(function(p) { p.classList.remove('is-active'); });
-            pill.classList.add('is-active');
-        });
-        pillContainer.appendChild(pill);
+    // Label click handler (event delegation)
+    document.getElementById('label-list').addEventListener('click', function(e) {
+        var btn = e.target.closest('.sidebar-label-btn');
+        if (!btn) return;
+        this.querySelectorAll('.sidebar-label-btn').forEach(function(b) { b.classList.remove('is-active'); });
+        btn.classList.add('is-active');
     });
 
     // Keyboard navigation
