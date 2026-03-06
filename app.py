@@ -18,11 +18,11 @@ def create_app() -> Flask:
         return projects_page_route("Datamarkin")
 
     @app.route("/project/<project_id>")
-    def project_detail(project_id):
+    def project(project_id):
         return project_page_route(project_id)
 
     @app.route("/project/<project_id>/annotate/<file_id>")
-    def annotate(project_id, file_id):
+    def project_image(project_id, file_id):
         return project_image_page_route(project_id, file_id)
 
     @app.route("/model-zoo")
