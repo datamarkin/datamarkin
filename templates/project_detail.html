@@ -3,92 +3,202 @@
 {% block title %}{{ project.name }} — Datamarkin{% endblock %}
 
 {% block content %}
-    <section class="section">
-        <div class="container">
-            <div class="content">
-                <div class="box">
-                    <h1 class="title">{{ project.name }}</h1>
-                    <p class="subtitle">
-                        <small>ID: {{ project.id }}</small>
-                    </p>
-                </div>
+    <!-- Project Toolbar -->
+    <div class="project-toolbar">
+        <div class="toolbar-left">
+            <h1 class="toolbar-title">{{ project.name }}</h1>
+        </div>
+        <div class="toolbar-center">
+            <nav class="tab-pills" id="split-tabs">
+                <a class="tab-pill is-active" data-split="all">All <span class="tag is-small" id="count-all">{{ files|length }}</span></a>
+                <a class="tab-pill" data-split="train">Train <span class="tag is-small" id="count-train">0</span></a>
+                <a class="tab-pill" data-split="val">Val <span class="tag is-small" id="count-val">0</span></a>
+                <a class="tab-pill" data-split="test">Test <span class="tag is-small" id="count-test">0</span></a>
+            </nav>
+        </div>
+        <div class="toolbar-right">
+            <button class="button is-app" id="settings-btn" title="Settings">&#9881;</button>
+        </div>
+    </div>
 
-                {% if project.description %}
-                <div class="box">
-                    <h2 class="is-size-4">Description</h2>
-                    <p>{{ project.description }}</p>
-                </div>
-                {% endif %}
+    <!-- Main area: sidebar + grid -->
+    <div class="project-body">
+        <!-- Sidebar -->
+        <aside class="filter-sidebar">
+            <div class="sidebar-section">
+                <p class="sidebar-heading">Labels</p>
+                <div id="label-filters"></div>
+            </div>
+            <hr>
+            <div class="sidebar-section">
+                <p class="sidebar-heading">Status</p>
+                <label class="radio-line"><input type="radio" name="status-filter" value="all" checked> All</label>
+                <label class="radio-line"><input type="radio" name="status-filter" value="annotated"> Annotated</label>
+                <label class="radio-line"><input type="radio" name="status-filter" value="pending"> Pending</label>
+            </div>
+        </aside>
 
-                <div class="columns">
-                    <div class="column">
-                        <div class="box">
-                            <h2 class="is-size-4">Status</h2>
-                            <p>
-                                <span class="tag {{ 'is-success' if project.status == 'active' else 'is-warning' }}">
-                                    {{ project.status }}
-                                </span>
-                            </p>
+        <!-- Image Grid -->
+        <div class="image-grid-container">
+            {% if files %}
+            <div class="columns is-multiline is-mobile" id="image-grid">
+                {% for file in files %}
+                <div class="column is-2-fullhd is-3-desktop is-4-tablet is-6-mobile file-card"
+                     data-split="{{ file.split or '' }}"
+                     data-annotated="{{ '1' if file.is_annotated else '0' }}"
+                     data-labels="{{ file.annotations or '' }}">
+                    <div class="card">
+                        <div class="card-image">
+                            <figure class="image is-4by3">
+                                <img src="{{ url_for('serve_file', file_id=file.id) }}" alt="{{ file.filename }}" loading="lazy">
+                            </figure>
+                            {% if file.is_annotated %}
+                            <span class="annotated-badge" title="Annotated">&#10003;</span>
+                            {% endif %}
+                        </div>
+                        <div class="card-content">
+                            <p class="has-text-truncated is-size-7">{{ file.filename }}</p>
                         </div>
                     </div>
-                    <div class="column">
-                        <div class="box">
-                            <h2 class="is-size-4">Type</h2>
-                            <p>{{ project.type }}</p>
-                        </div>
-                    </div>
                 </div>
-
-                {% if project.model_architecture %}
-                <div class="box">
-                    <h2 class="is-size-4">Model Architecture</h2>
-                    <p>{{ project.model_architecture }}</p>
-                </div>
-                {% endif %}
-
-                {% if project.created_at %}
-                <div class="box">
-                    <h2 class="is-size-4">Metadata</h2>
-                    <ul>
-                        <li>Created: {{ project.created_at }}</li>
-                        <li>Updated: {{ project.updated_at }}</li>
-                        {% if project.train %}
-                        <li>Train samples: {{ project.train }}</li>
-                        {% endif %}
-                    </ul>
-                </div>
-                {% endif %}
-
-                {% if files %}
-                <div class="box">
-                    <h2 class="is-size-4">Files ({{ files|length }})</h2>
-                    <table class="table is-fullwidth">
-                        <thead>
-                            <tr>
-                                <th>Filename</th>
-                                <th>Size</th>
-                                <th>Dimensions</th>
-                                <th>Annotations</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for file in files %}
-                            <tr>
-                                <td>
-                                    <a href="{{ url_for('serve_file', file_id=file.id) if file.filename else '#' }}">
-                                        {{ file.filename }}
-                                    </a>
-                                </td>
-                                <td>{{ file.filesize }} bytes if file.filesize else '-' }}</td>
-                                <td>{{ file.width }}x{{ file.height }} if file.width and file.height else '-' }}</td>
-                                <td>{{ 'Yes' if file.is_annotated else 'No' }}</td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-                {% endif %}
+                {% endfor %}
+            </div>
+            {% endif %}
+            <div class="empty-state is-hidden" id="empty-state">
+                <p class="has-text-grey has-text-centered py-6">No images match the current filters.</p>
             </div>
         </div>
-    </section>
+    </div>
+
+    <!-- Settings Modal -->
+    <div class="modal" id="settings-modal">
+        <div class="modal-background"></div>
+        <div class="modal-card">
+            <header class="modal-card-head">
+                <p class="modal-card-title">Project Settings</p>
+                <button class="delete" aria-label="close"></button>
+            </header>
+            <section class="modal-card-body">
+                <h3 class="is-size-5 mb-2">Configuration</h3>
+                <pre id="settings-config"></pre>
+                <h3 class="is-size-5 mt-4 mb-2">Augmentation</h3>
+                <pre id="settings-augmentation"></pre>
+                <h3 class="is-size-5 mt-4 mb-2">Preprocessing</h3>
+                <pre id="settings-preprocessing"></pre>
+            </section>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // --- Labels ---
+        var labelsRaw = {{ project.labels | tojson }};
+        var labels = {};
+        try { labels = JSON.parse(labelsRaw) || {}; } catch(e) {}
+
+        var labelContainer = document.getElementById('label-filters');
+        Object.keys(labels).forEach(function(name) {
+            var color = labels[name];
+            var label = document.createElement('label');
+            label.className = 'checkbox-line';
+            label.innerHTML = '<input type="checkbox" checked data-label="' + name + '"> ' +
+                '<span class="label-checkbox-color" style="background:' + color + '"></span> ' + name;
+            labelContainer.appendChild(label);
+        });
+
+        // --- Split counts ---
+        var cards = document.querySelectorAll('.file-card');
+        var counts = {all: cards.length, train: 0, val: 0, test: 0};
+        cards.forEach(function(c) {
+            var s = c.dataset.split;
+            if (counts[s] !== undefined) counts[s]++;
+        });
+        document.getElementById('count-all').textContent = counts.all;
+        document.getElementById('count-train').textContent = counts.train;
+        document.getElementById('count-val').textContent = counts.val;
+        document.getElementById('count-test').textContent = counts.test;
+
+        // --- Filtering ---
+        var activeSplit = 'all';
+
+        document.getElementById('split-tabs').addEventListener('click', function(e) {
+            var pill = e.target.closest('.tab-pill');
+            if (!pill) return;
+            e.preventDefault();
+            this.querySelectorAll('.tab-pill').forEach(function(p) { p.classList.remove('is-active'); });
+            pill.classList.add('is-active');
+            activeSplit = pill.dataset.split;
+            applyFilters();
+        });
+
+        document.querySelectorAll('input[name="status-filter"]').forEach(function(r) {
+            r.addEventListener('change', applyFilters);
+        });
+
+        labelContainer.addEventListener('change', applyFilters);
+
+        function applyFilters() {
+            var statusVal = document.querySelector('input[name="status-filter"]:checked').value;
+            var checkedLabels = [];
+            document.querySelectorAll('#label-filters input[type="checkbox"]:checked').forEach(function(cb) {
+                checkedLabels.push(cb.dataset.label);
+            });
+
+            var visibleCount = 0;
+            cards.forEach(function(card) {
+                var show = true;
+
+                // Split filter
+                if (activeSplit !== 'all' && card.dataset.split !== activeSplit) show = false;
+
+                // Status filter
+                if (statusVal === 'annotated' && card.dataset.annotated !== '1') show = false;
+                if (statusVal === 'pending' && card.dataset.annotated !== '0') show = false;
+
+                // Label filter
+                if (checkedLabels.length > 0 && checkedLabels.length < Object.keys(labels).length) {
+                    var cardLabels = card.dataset.labels;
+                    if (cardLabels) {
+                        var hasMatch = checkedLabels.some(function(l) { return cardLabels.indexOf(l) !== -1; });
+                        if (!hasMatch) show = false;
+                    }
+                }
+
+                card.classList.toggle('is-hidden-filter', !show);
+                if (show) visibleCount++;
+            });
+
+            var emptyState = document.getElementById('empty-state');
+            if (visibleCount === 0) {
+                emptyState.classList.remove('is-hidden');
+            } else {
+                emptyState.classList.add('is-hidden');
+            }
+        }
+
+        // --- Settings modal ---
+        var modal = document.getElementById('settings-modal');
+        var configRaw = {{ project.configuration | tojson }};
+        var augRaw = {{ project.augmentation | tojson }};
+        var preRaw = {{ project.preprocessing | tojson }};
+
+        function prettyJSON(raw) {
+            try { return JSON.stringify(JSON.parse(raw), null, 2); } catch(e) { return raw || '{}'; }
+        }
+
+        document.getElementById('settings-config').textContent = prettyJSON(configRaw);
+        document.getElementById('settings-augmentation').textContent = prettyJSON(augRaw);
+        document.getElementById('settings-preprocessing').textContent = prettyJSON(preRaw);
+
+        document.getElementById('settings-btn').addEventListener('click', function() {
+            modal.classList.add('is-active');
+        });
+        modal.querySelector('.modal-background').addEventListener('click', function() {
+            modal.classList.remove('is-active');
+        });
+        modal.querySelector('.delete').addEventListener('click', function() {
+            modal.classList.remove('is-active');
+        });
+    })();
+    </script>
 {% endblock %}

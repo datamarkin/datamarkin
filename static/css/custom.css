@@ -138,3 +138,124 @@ hr {
     flex: 1;
     overflow-y: auto;
 }
+
+.main-content:has(.project-toolbar) {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+/* ---- Project detail layout ---- */
+.project-toolbar {
+    display: flex;
+    align-items: center;
+    padding: 10px 16px;
+    border-bottom: 1px solid #eee;
+    flex-shrink: 0;
+    gap: 12px;
+}
+
+.toolbar-left { flex-shrink: 0; }
+.toolbar-title { font-size: 16px; margin: 0; white-space: nowrap; }
+.toolbar-center { flex: 1; display: flex; justify-content: center; }
+.toolbar-right { flex-shrink: 0; }
+
+.project-toolbar .tab-pill .tag { margin-left: 4px; font-size: 11px; vertical-align: middle; }
+
+.project-body {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+}
+
+.filter-sidebar {
+    width: 220px;
+    flex-shrink: 0;
+    padding: 16px;
+    border-right: 1px solid #eee;
+    overflow-y: auto;
+    background: #faf8f4;
+}
+
+.sidebar-heading {
+    font-weight: 700;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #888;
+    margin-bottom: 8px;
+}
+
+.checkbox-line, .radio-line {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 14px;
+    padding: 3px 0;
+    cursor: pointer;
+}
+
+.label-checkbox-color {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border-radius: 2px;
+    flex-shrink: 0;
+}
+
+.image-grid-container {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px;
+}
+
+.file-card .card {
+    border-radius: 8px;
+    cursor: pointer;
+    position: relative;
+    transition: box-shadow 0.15s;
+}
+
+.file-card .card:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+}
+
+.file-card .card-image { position: relative; }
+.file-card .card-image img { object-fit: cover; }
+
+.file-card .card-content {
+    padding: 6px 8px;
+}
+
+.file-card.is-hidden-filter { display: none !important; }
+
+.has-text-truncated {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.annotated-badge {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    width: 22px;
+    height: 22px;
+    background: #48c774;
+    color: #fff;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 1;
+}
+
+#settings-modal pre {
+    background: #f5f5f5;
+    padding: 12px;
+    border-radius: 6px;
+    font-size: 13px;
+    overflow-x: auto;
+}
