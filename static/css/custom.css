@@ -34,7 +34,7 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .button.is-app:hover {
-    background: rgba(0, 0, 0, 0.08);
+    background: rgba(0, 0, 0, 0.04);
     color: #111;
 }
 
@@ -94,8 +94,8 @@ hr {
 }
 
 .icon svg {
-    width: 1em;
-    height: 1em;
+    width: 1.5em;
+    height: 1.5em;
 }
 
 /* ---- Label pills wrapper (hover-to-expand) ---- */
@@ -349,4 +349,21 @@ hr {
     text-decoration: none;
     color: inherit;
     display: block;
+}
+
+/* ---- Hidden label (hover-to-reveal) ---- */
+.button .is-hidden-label {
+    max-width: 0;
+    overflow: hidden;
+    opacity: 0;
+    transition: max-width 0.25s ease, opacity 0.2s ease, margin 0.25s ease;
+    display: inline-block;
+    white-space: nowrap;
+    margin-right: 0;
+}
+
+.button:hover .is-hidden-label {
+    max-width: 8em;
+    opacity: 1;
+    margin-right: 0.35em;
 }
