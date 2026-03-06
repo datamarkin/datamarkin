@@ -98,36 +98,6 @@ hr {
     height: 1.5em;
 }
 
-/* ---- Label pills wrapper (hover-to-expand) ---- */
-.label-pills-wrapper {
-    position: relative;
-    max-width: 500px;
-    overflow: hidden;
-    height: 32px;
-    z-index: 10;
-}
-
-.label-pills-wrapper:hover {
-    overflow: visible;
-    height: auto;
-    max-width: none;
-}
-
-.label-pills-wrapper:hover .tab-pills {
-    flex-wrap: wrap;
-    position: absolute;
-    top: 0;
-    left: 50%;
-    transform: translateX(-50%);
-    background: #f7ecd9;
-    border-radius: 8px;
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
-    padding: 6px;
-    min-width: 500px;
-    max-width: 700px;
-    z-index: 10;
-}
-
 /* ---- Tab pills ---- */
 .tab-pills {
     display: flex;
