@@ -14,13 +14,15 @@
     {% block titlebar %}
     <div class="titlebar">
         <div class="titlebar-left">
-            <button class="button is-small is-text" onclick="window.history.back()" title="Back">
+            <button class="button is-small is-app" onclick="window.history.back()" title="Back">
                     <span class="icon is-small">
                       {% include 'icons/chevron-left.svg' %}
                     </span>
             </button>
-            <button class="nav-arrow" onclick="window.history.forward()" title="Forward">
-                {% include 'icons/chevron-right.svg' %}
+            <button class="button is-small is-app" onclick="window.history.forward()" title="Forward">
+                    <span class="icon is-small">
+                      {% include 'icons/chevron-right.svg' %}
+                    </span>
             </button>
         </div>
         <div class="titlebar-center">
