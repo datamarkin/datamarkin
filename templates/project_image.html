@@ -3,22 +3,62 @@
 {% block title %}Annotate — {{ current_file.filename }}{% endblock %}
 
 {% block titlebar %}
-<div class="titlebar">
-    <div class="titlebar-left">
-        <a href="/project/{{ project.id }}" class="button is-small is-app" title="Back to project">
-            <span class="icon is-small">
-                {% include 'icons/chevron-left.svg' %}
-            </span>
-            <span>Back</span>
-        </a>
+    <div class="titlebar">
+        <div class="titlebar-left">
+            <a href="/project/{{ project.id }}" class="button is-small is-app" title="Back to project">
+                <span class="icon is-small">
+                    {% include 'icons/chevron-left.svg' %}
+                </span>
+                <span class="is-hidden-label">Back</span>
+            </a>
+        </div>
+        <div class="titlebar-center">
+            <div class="buttons has-addons is-centered m-0 pr-3">
+                <button class="button is-small is-app">
+                    <span class="icon is-small">
+                        {% include 'icons/eye-slash.svg' %}
+                    </span>
+                    <span>Pause</span>
+                </button>
+            </div>
+            <div class="buttons has-addons is-centered m-0">
+                <button disabled="" class="button is-small is-light">
+                    <span class="icon is-small">
+                        {% include 'icons/check.svg' %}
+                    </span>
+                    <span>Validate</span>
+                </button>
+                <button class="button is-small is-light">
+                    <span class="icon is-small">
+                        {% include 'icons/x-mark.svg' %}
+                    </span>
+                    <span>Reject</span>
+                </button>
+            </div>
+            <div class="buttons has-addons is-centered m-0 pl-3">
+                <button class="button is-small is-app">
+                    <span class="icon is-small">
+                        {% include 'icons/sparkles.svg' %}
+                    </span>
+                    <span>Auto Annotate</span>
+                </button>
+            </div>
+        </div>
+        <div class="titlebar-right" style="text-align: right;">
+            <span class="is-size-7 has-text-weight-bold"
+                  style="margin-left: 8px;">{{ current_index + 1 }} / {{ files|length }}</span>
+            <a href="/project/{{ project.id }}" class="button is-small is-app" title="Back to project">
+                <span class="icon is-small">
+                    {% include 'icons/exclamation-circle.svg' %}
+                </span>
+            </a>
+            <a href="/project/{{ project.id }}" class="button is-small is-app" title="Back to project">
+                <span class="icon is-small">
+                    {% include 'icons/trash.svg' %}
+                </span>
+            </a>
+        </div>
     </div>
-    <div class="titlebar-center">
-    </div>
-    <div class="titlebar-right" style="text-align: right;">
-        <span class="is-size-7 has-text-grey">{{ current_file.filename }}</span>
-        <span class="is-size-7 has-text-weight-bold" style="margin-left: 8px;">{{ current_index + 1 }} / {{ files|length }}</span>
-    </div>
-</div>
 {% endblock %}
 
 {% block sidebar %}
@@ -27,59 +67,63 @@
             <p class="sidebar-heading">Labels</p>
             <div class="sidebar-label-list" id="label-list">
                 {% for name, color in labels.items() %}
-                <button class="button is-small is-app is-fullwidth is-justify-content-left sidebar-label-btn {{ 'is-active' if loop.first }}" data-label="{{ name }}">
-                    <span class="label-checkbox-color" style="background:{{ color }}"></span>
-                    <span>{{ name }}</span>
-                </button>
+                    <button class="button is-small is-app is-fullwidth is-justify-content-left sidebar-label-btn {{ 'is-active' if loop.first }}"
+                            data-label="{{ name }}">
+                        <span class="label-checkbox-color" style="background:{{ color }}"></span>
+                        <span>{{ name }}</span>
+                    </button>
                 {% endfor %}
             </div>
         </div>
         <div class="app-sidebar-body">
             <div class="thumb-grid">
                 {% for file in files %}
-                <a href="/project/{{ project.id }}/annotate/{{ file.id }}" class="thumb-item {{ 'is-active' if file.id == current_file.id }}">
-                    <img src="{{ url_for('serve_file', file_id=file.id) }}" alt="{{ file.filename }}" loading="lazy">
-                    {% if file.is_annotated %}
-                    <span class="annotated-badge annotated-badge-sm">&#10003;</span>
-                    {% endif %}
-                </a>
+                    <a href="/project/{{ project.id }}/annotate/{{ file.id }}"
+                       class="thumb-item {{ 'is-active' if file.id == current_file.id }}">
+                        <img src="{{ url_for('serve_file', file_id=file.id) }}" alt="{{ file.filename }}"
+                             loading="lazy">
+                        {% if file.is_annotated %}
+                            <span class="annotated-badge annotated-badge-sm">&#10003;</span>
+                        {% endif %}
+                    </a>
                 {% endfor %}
             </div>
         </div>
+    <div class="app-sidebar-footer">
+        <p>filename.jpg</p>
+    </div>
     </aside>
 {% endblock %}
 
 {% block content %}
     <div class="annotate-image-container">
         <img src="{{ url_for('serve_file', file_id=current_file.id) }}" alt="{{ current_file.filename }}">
-        <div class="annotate-actions">
-            <button class="button is-success annotate-action-btn" title="Accept">&#10003;</button>
-            <button class="button is-danger annotate-action-btn" title="Reject">&#10005;</button>
-        </div>
     </div>
 
-<script>
-(function() {
-    // Label click handler (event delegation)
-    document.getElementById('label-list').addEventListener('click', function(e) {
-        var btn = e.target.closest('.sidebar-label-btn');
-        if (!btn) return;
-        this.querySelectorAll('.sidebar-label-btn').forEach(function(b) { b.classList.remove('is-active'); });
-        btn.classList.add('is-active');
-    });
+    <script>
+        (function () {
+            // Label click handler (event delegation)
+            document.getElementById('label-list').addEventListener('click', function (e) {
+                var btn = e.target.closest('.sidebar-label-btn');
+                if (!btn) return;
+                this.querySelectorAll('.sidebar-label-btn').forEach(function (b) {
+                    b.classList.remove('is-active');
+                });
+                btn.classList.add('is-active');
+            });
 
-    // Keyboard navigation
-    var files = {{ files | tojson }};
-    var currentIndex = {{ current_index }};
-    var projectId = {{ project.id | tojson }};
+            // Keyboard navigation
+            var files = {{ files | tojson }};
+            var currentIndex = {{ current_index }};
+            var projectId = {{ project.id | tojson }};
 
-    document.addEventListener('keydown', function(e) {
-        if (e.key === 'ArrowLeft' && currentIndex > 0) {
-            window.location.href = '/project/' + projectId + '/annotate/' + files[currentIndex - 1].id;
-        } else if (e.key === 'ArrowRight' && currentIndex < files.length - 1) {
-            window.location.href = '/project/' + projectId + '/annotate/' + files[currentIndex + 1].id;
-        }
-    });
-})();
-</script>
+            document.addEventListener('keydown', function (e) {
+                if (e.key === 'ArrowLeft' && currentIndex > 0) {
+                    window.location.href = '/project/' + projectId + '/annotate/' + files[currentIndex - 1].id;
+                } else if (e.key === 'ArrowRight' && currentIndex < files.length - 1) {
+                    window.location.href = '/project/' + projectId + '/annotate/' + files[currentIndex + 1].id;
+                }
+            });
+        })();
+    </script>
 {% endblock %}

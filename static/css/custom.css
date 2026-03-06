@@ -299,22 +299,6 @@ hr {
     object-fit: contain;
 }
 
-.annotate-actions {
-    position: absolute;
-    bottom: 16px;
-    right: 16px;
-    display: flex;
-    gap: 8px;
-}
-
-.annotate-action-btn {
-    border-radius: 50% !important;
-    width: 48px;
-    height: 48px;
-    font-size: 20px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-}
-
 .main-content:has(.annotate-image-container) {
     display: flex;
     flex-direction: column;
