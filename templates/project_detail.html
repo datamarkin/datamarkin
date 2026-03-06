@@ -75,7 +75,7 @@
                             {% for file in files %}
                             <tr>
                                 <td>
-                                    <a href="{{ url_for('serve_project_image', project_id=project.id, filename=file.filename) if file.filename else '#' }}">
+                                    <a href="{{ url_for('serve_file', file_id=file.id) if file.filename else '#' }}">
                                         {{ file.filename }}
                                     </a>
                                 </td>

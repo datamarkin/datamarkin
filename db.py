@@ -2,7 +2,7 @@ import sqlite3
 import uuid
 from datetime import datetime, timezone
 
-from config import DATA_DIR, DB_PATH
+from config import DATA_DIR, DB_PATH, FILES_DIR
 
 
 def get_db() -> sqlite3.Connection:
@@ -15,6 +15,7 @@ def get_db() -> sqlite3.Connection:
 def init_db() -> None:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     (DATA_DIR / "projects").mkdir(exist_ok=True)
+    FILES_DIR.mkdir(exist_ok=True)
 
     conn = get_db()
     conn.executescript("""
@@ -37,7 +38,7 @@ def init_db() -> None:
 
         CREATE TABLE IF NOT EXISTS files (
             id              TEXT PRIMARY KEY,
-            project_id      TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+            project_id      TEXT REFERENCES projects(id) ON DELETE CASCADE,
             filename        TEXT NOT NULL,
             extension       TEXT,
             width           INTEGER,

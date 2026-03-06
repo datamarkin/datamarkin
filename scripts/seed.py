@@ -5,7 +5,7 @@ import argparse, json, os, shutil, sys, urllib.request
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from config import DATA_DIR, DB_PATH
+from config import DATA_DIR, DB_PATH, FILES_DIR, file_path
 from db import init_db, get_db, now, new_id
 
 PICSUM_LIST_URL = "https://picsum.photos/v2/list?page=2&limit=100"
@@ -104,6 +104,9 @@ def seed(fresh=False):
         if projects_dir.exists():
             shutil.rmtree(projects_dir)
             print(f"  Deleted {projects_dir}")
+        if FILES_DIR.exists():
+            shutil.rmtree(FILES_DIR)
+            print(f"  Deleted {FILES_DIR}")
 
     init_db()
 
@@ -144,9 +147,8 @@ def seed(fresh=False):
             picsum_id = picsum_images[img_idx]["id"]
             img_idx += 1
 
-            dest_dir = DATA_DIR / "projects" / proj_id / "images"
-            dest_dir.mkdir(parents=True, exist_ok=True)
-            dest = dest_dir / f"{file_id}.jpg"
+            dest = file_path(f"{file_id}.jpg")
+            dest.parent.mkdir(parents=True, exist_ok=True)
 
             print(f"  Downloading picsum #{picsum_id} ({img_def['w']}x{img_def['h']}) -> {dest.name}")
             download_image(picsum_id, img_def["w"], img_def["h"], dest)

@@ -15,6 +15,13 @@ def get_project_by_id(project_id: str) -> dict | None:
     return dict(row) if row else None
 
 
+def get_file_by_id(file_id: str) -> dict | None:
+    conn = get_db()
+    row = conn.execute("SELECT * FROM files WHERE id = ?", (file_id,)).fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
 def get_project_files(project_id: str) -> list[dict]:
     conn = get_db()
     rows = conn.execute(
