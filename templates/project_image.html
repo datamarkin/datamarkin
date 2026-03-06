@@ -5,7 +5,7 @@
 {% block titlebar %}
 <div class="titlebar">
     <div class="titlebar-left">
-        <a href="/project/{{ project.id }}" class="button is-small is-text" title="Back to project">
+        <a href="/project/{{ project.id }}" class="button is-small is-app" title="Back to project">
             <span class="icon is-small">
                 {% include 'icons/chevron-left.svg' %}
             </span>
@@ -24,20 +24,24 @@
 </div>
 {% endblock %}
 
-{% block content %}
-<div class="annotate-body">
-    <aside class="thumb-sidebar">
-        <div class="thumb-grid">
-            {% for file in files %}
-            <a href="/project/{{ project.id }}/annotate/{{ file.id }}" class="thumb-item {{ 'is-active' if file.id == current_file.id }}">
-                <img src="{{ url_for('serve_file', file_id=file.id) }}" alt="{{ file.filename }}" loading="lazy">
-                {% if file.is_annotated %}
-                <span class="annotated-badge">&#10003;</span>
-                {% endif %}
-            </a>
-            {% endfor %}
+{% block sidebar %}
+    <aside class="app-sidebar">
+        <div class="app-sidebar-body">
+            <div class="thumb-grid">
+                {% for file in files %}
+                <a href="/project/{{ project.id }}/annotate/{{ file.id }}" class="thumb-item {{ 'is-active' if file.id == current_file.id }}">
+                    <img src="{{ url_for('serve_file', file_id=file.id) }}" alt="{{ file.filename }}" loading="lazy">
+                    {% if file.is_annotated %}
+                    <span class="annotated-badge">&#10003;</span>
+                    {% endif %}
+                </a>
+                {% endfor %}
+            </div>
         </div>
     </aside>
+{% endblock %}
+
+{% block content %}
     <div class="annotate-image-container">
         <img src="{{ url_for('serve_file', file_id=current_file.id) }}" alt="{{ current_file.filename }}">
         <div class="annotate-actions">
@@ -45,7 +49,6 @@
             <button class="button is-danger annotate-action-btn" title="Reject">&#10005;</button>
         </div>
     </div>
-</div>
 
 <script>
 (function() {

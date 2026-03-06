@@ -5,18 +5,18 @@
 {% block titlebar %}
     <div class="titlebar">
         <div class="titlebar-left">
-            <a href="/projects" class="button is-small is-app" title="Back to projects">
-            <span class="icon is-small">
-                {% include 'icons/chevron-left.svg' %}
-            </span>
+            <a href="/projects" class="button is-small is-app" title="Back">
+                    <span class="icon is-small">
+                      {% include 'icons/chevron-left.svg' %}
+                    </span>
                 <span class="is-hidden-label">Projects</span>
             </a>
         </div>
         <div class="titlebar-center">
-            <nav class="radio-line" id="status-pills">
-                <a class="tab-pill is-active" href="#" data-status="all">All</a>
-                <a class="tab-pill" href="#" data-status="annotated">Annotated</a>
-                <a class="tab-pill" href="#" data-status="pending">Pending</a>
+            <nav class="tab-pills">
+                <a href="/projects" class="tab-pill is-active">All images</a>
+                <a href="/model-zoo" class="tab-pill">Annotated</a>
+                <a href="/workflows" class="tab-pill">Pending</a>
             </nav>
         </div>
         <div class="titlebar-right">
@@ -30,11 +30,16 @@
     </div>
 {% endblock %}
 
-{% block content %}
-    <!-- Main area: sidebar + grid -->
-    <div class="project-body">
-        <!-- Sidebar -->
-        <aside class="filter-sidebar">
+{% block sidebar %}
+    <aside class="app-sidebar">
+        <div class="app-sidebar-body">
+            <div class="sidebar-section">
+                <div class="drop-zone" id="drop-zone">
+{#                    <span class="drop-zone-icon">+</span>#}
+                    <span class="drop-zone-text">Drop images here</span>
+                </div>
+            </div>
+            <hr>
             <div class="sidebar-section">
                 <p class="sidebar-heading">Labels</p>
                 <div id="label-filters"></div>
@@ -42,45 +47,51 @@
             <hr>
             <div class="sidebar-section">
                 <p class="sidebar-heading">Split</p>
-                <nav class="tab-pills" id="split-tabs">
-                    <a class="tab-pill is-active" data-split="all">All <span class="tag is-small" id="count-all">{{ files|length }}</span></a>
-                    <a class="tab-pill" data-split="train">Train <span class="tag is-small" id="count-train">0</span></a>
+                <nav class="tab-pills"">
+                    <a class="tab-pill is-active" data-split="all">All <span class="tag is-small"
+                                                                             id="count-all">{{ files|length }}</span></a>
+                    <a class="tab-pill" data-split="train">Train <span class="tag is-small"
+                                                                       id="count-train">0</span></a>
                     <a class="tab-pill" data-split="val">Val <span class="tag is-small" id="count-val">0</span></a>
                     <a class="tab-pill" data-split="test">Test <span class="tag is-small" id="count-test">0</span></a>
                 </nav>
             </div>
-        </aside>
+        </div>
+        <div class="app-sidebar-footer">
+            {{ project.name }}
+        </div>
+    </aside>
+{% endblock %}
 
-        <!-- Image Grid -->
-        <div class="image-grid-container">
-            {% if files %}
-                <div class="columns is-multiline is-mobile" id="image-grid">
-                    {% for file in files %}
-                        <div class="column is-2-fullhd is-3-desktop is-4-tablet is-6-mobile file-card"
-                             data-split="{{ file.split or '' }}"
-                             data-annotated="{{ '1' if file.is_annotated else '0' }}"
-                             data-labels="{{ file.annotations or '' }}">
-                            <a href="/project/{{ project.id }}/annotate/{{ file.id }}" class="card">
-                                <div class="card-image">
-                                    <figure class="image is-4by3">
-                                        <img src="{{ url_for('serve_file', file_id=file.id) }}"
-                                             alt="{{ file.filename }}" loading="lazy">
-                                    </figure>
-                                    {% if file.is_annotated %}
-                                        <span class="annotated-badge" title="Annotated">&#10003;</span>
-                                    {% endif %}
-                                </div>
-                                <div class="card-content">
-                                    <p class="has-text-truncated is-size-7">{{ file.filename }}</p>
-                                </div>
-                            </a>
-                        </div>
-                    {% endfor %}
-                </div>
-            {% endif %}
-            <div class="empty-state is-hidden" id="empty-state">
-                <p class="has-text-grey has-text-centered py-6">No images match the current filters.</p>
+{% block content %}
+    <div class="image-grid-container">
+        {% if files %}
+            <div class="columns is-multiline is-mobile" id="image-grid">
+                {% for file in files %}
+                    <div class="column is-2-fullhd is-3-desktop is-4-tablet is-6-mobile file-card"
+                         data-split="{{ file.split or '' }}"
+                         data-annotated="{{ '1' if file.is_annotated else '0' }}"
+                         data-labels="{{ file.annotations or '' }}">
+                        <a href="/project/{{ project.id }}/annotate/{{ file.id }}" class="card">
+                            <div class="card-image">
+                                <figure class="image is-4by3">
+                                    <img src="{{ url_for('serve_file', file_id=file.id) }}"
+                                         alt="{{ file.filename }}" loading="lazy">
+                                </figure>
+                                {% if file.is_annotated %}
+                                    <span class="annotated-badge" title="Annotated">&#10003;</span>
+                                {% endif %}
+                            </div>
+{#                            <div class="card-content">#}
+{#                                <p class="has-text-truncated is-size-7">{{ file.filename }}</p>#}
+{#                            </div>#}
+                        </a>
+                    </div>
+                {% endfor %}
             </div>
+        {% endif %}
+        <div class="empty-state is-hidden" id="empty-state">
+            <p class="has-text-grey has-text-centered py-6">No images match the current filters.</p>
         </div>
     </div>
 
@@ -138,28 +149,28 @@
             // --- Filtering ---
             var activeSplit = 'all';
 
-            document.getElementById('split-tabs').addEventListener('click', function (e) {
-                var pill = e.target.closest('.tab-pill');
-                if (!pill) return;
-                e.preventDefault();
-                this.querySelectorAll('.tab-pill').forEach(function (p) {
-                    p.classList.remove('is-active');
-                });
-                pill.classList.add('is-active');
-                activeSplit = pill.dataset.split;
-                applyFilters();
-            });
+            {#document.getElementById('split-tabs').addEventListener('click', function (e) {#}
+            {#    var pill = e.target.closest('.tab-pill');#}
+            {#    if (!pill) return;#}
+            {#    e.preventDefault();#}
+            {#    this.querySelectorAll('.tab-pill').forEach(function (p) {#}
+            {#        p.classList.remove('is-active');#}
+            {#    });#}
+            {#    pill.classList.add('is-active');#}
+            {#    activeSplit = pill.dataset.split;#}
+            {#    applyFilters();#}
+            {#});#}
 
-            document.getElementById('status-pills').addEventListener('click', function (e) {
-                var pill = e.target.closest('.tab-pill');
-                if (!pill) return;
-                e.preventDefault();
-                this.querySelectorAll('.tab-pill').forEach(function (p) {
-                    p.classList.remove('is-active');
-                });
-                pill.classList.add('is-active');
-                applyFilters();
-            });
+            {#document.getElementById('status-pills').addEventListener('click', function (e) {#}
+            {#    var pill = e.target.closest('.tab-pill');#}
+            {#    if (!pill) return;#}
+            {#    e.preventDefault();#}
+            {#    this.querySelectorAll('.tab-pill').forEach(function (p) {#}
+            {#        p.classList.remove('is-active');#}
+            {#    });#}
+            {#    pill.classList.add('is-active');#}
+            {#    applyFilters();#}
+            {#});#}
 
             labelContainer.addEventListener('change', applyFilters);
 
@@ -231,6 +242,12 @@
             modal.querySelector('.delete').addEventListener('click', function () {
                 modal.classList.remove('is-active');
             });
+            // --- Drop zone drag-over feedback ---
+            var dropZone = document.getElementById('drop-zone');
+            dropZone.addEventListener('dragenter', function(e) { e.preventDefault(); dropZone.classList.add('is-dragover'); });
+            dropZone.addEventListener('dragover', function(e) { e.preventDefault(); });
+            dropZone.addEventListener('dragleave', function() { dropZone.classList.remove('is-dragover'); });
+            dropZone.addEventListener('drop', function(e) { e.preventDefault(); dropZone.classList.remove('is-dragover'); });
         })();
     </script>
 {% endblock %}

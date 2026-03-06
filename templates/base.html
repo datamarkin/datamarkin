@@ -43,16 +43,7 @@
         </div>
     {% endblock %}
     <div class="app-body">
-        {#        <aside class="sidebar">#}
-        {#            <div class="sidebar-logo">DATAMARKIN</div>#}
-        {#            <nav class="sidebar-nav">#}
-        {#                <a href="/projects" class="sidebar-link {{ 'is-active' if active_tab == 'projects' }}">Projects</a>#}
-        {#                <a href="/inference" class="sidebar-link">Inference</a>#}
-        {#            </nav>#}
-        {#            <div class="sidebar-footer">#}
-        {#                <a href="/settings" class="sidebar-link">Settings</a>#}
-        {#            </div>#}
-        {#        </aside>#}
+        {% block sidebar %}{% endblock %}
         <main class="main-content">
             {% block content %}{% endblock %}
         </main>
