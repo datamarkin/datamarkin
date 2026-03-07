@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_pagination.html" import render_pagination %}
 
 {% block title %}{{ project.name }} — Datamarkin{% endblock %}
 
@@ -14,9 +15,14 @@
         </div>
         <div class="titlebar-center">
             <nav class="tab-pills">
-                <a href="/projects" class="tab-pill is-active">All images</a>
-                <a href="/model-zoo" class="tab-pill">Annotated</a>
-                <a href="/workflows" class="tab-pill">Pending</a>
+                <a href="{{ url_for('project', project_id=project.id) }}"
+                   class="tab-pill {{ 'is-active' if active_filter == 'all' }}">All images
+                    <span class="ml-1 has-text-grey is-size-7">{{ pagination.total if active_filter == 'all' else '' }}</span>
+                </a>
+                <a href="{{ url_for('project', project_id=project.id, has_annotations='true') }}"
+                   class="tab-pill {{ 'is-active' if active_filter == 'annotated' }}">Annotated</a>
+                <a href="{{ url_for('project', project_id=project.id, has_annotations='false') }}"
+                   class="tab-pill {{ 'is-active' if active_filter == 'pending' }}">Pending</a>
             </nav>
         </div>
         <div class="titlebar-right">
@@ -83,17 +89,15 @@
     <div class="image-grid-container">
         <div class="columns is-multiline is-mobile" id="image-grid">
             {% for file in files %}
-                <div class="column is-2-fullhd is-3-desktop is-4-tablet is-6-mobile file-card"
-                     data-split="{{ file.split or '' }}"
-                     data-annotated="{{ '1' if file.is_annotated else '0' }}"
-                     data-labels="{{ file.annotations or '' }}">
+                {% set has_annot = file.annotations and file.annotations not in ('', '[]', 'null') %}
+                <div class="column is-2-fullhd is-3-desktop is-4-tablet is-6-mobile file-card">
                     <a href="/project/{{ project.id }}/annotate/{{ file.id }}" class="card">
                         <div class="card-image">
                             <figure class="image is-4by3">
                                 <img src="{{ url_for('serve_file', file_id=file.id, key='small') }}"
                                      alt="{{ file.filename }}" loading="lazy">
                             </figure>
-                            {% if file.is_annotated %}
+                            {% if has_annot %}
                                 <span class="annotated-badge" title="Annotated">&#10003;</span>
                             {% endif %}
                         </div>
@@ -104,6 +108,13 @@
         <div class="empty-state {{ '' if not files else 'is-hidden' }}" id="empty-state">
             <p class="has-text-grey has-text-centered py-6">No images yet. Drop or browse to upload.</p>
         </div>
+        {% set extra = {} %}
+        {% if active_filter == 'annotated' %}
+            {% set extra = {"has_annotations": "true"} %}
+        {% elif active_filter == 'pending' %}
+            {% set extra = {"has_annotations": "false"} %}
+        {% endif %}
+        {{ render_pagination(pagination, url_for('project', project_id=project.id), extra) }}
     </div>
 
     <!-- Settings Modal -->
@@ -127,251 +138,138 @@
 
     <script>
         (function () {
-            // --- Labels ---
-            var labelsRaw = {{ project.labels | tojson }};
-            var labels = {};
-            try {
-                labels = JSON.parse(labelsRaw) || {};
-            } catch (e) {
-            }
+            // --- Settings modal ---
+            var modal = document.getElementById('settings-modal');
+            var configRaw = {{ project.configuration | tojson }};
+            var augRaw = {{ project.augmentation | tojson }};
+            var preRaw = {{ project.preprocessing | tojson }};
 
-            var labelContainer = document.getElementById('label-filters');
-            if (labelContainer) {
-                Object.keys(labels).forEach(function (name) {
-                    var color = labels[name];
-                    var label = document.createElement('label');
-                    label.className = 'checkbox-line';
-                    label.innerHTML = '<input type="checkbox" checked data-label="' + name + '"> ' +
-                        '<span class="label-checkbox-color" style="background:' + color + '"></span> ' + name;
-                    labelContainer.appendChild(label);
-                });
-            }
-
-            // --- Split counts ---
-            var cards = document.querySelectorAll('.file-card');
-            var counts = {all: cards.length, train: 0, val: 0, test: 0};
-            cards.forEach(function (c) {
-                var s = c.dataset.split;
-                if (counts[s] !== undefined) counts[s]++;
-            });
-            var countAll = document.getElementById('count-all');
-            if (countAll) {
-                countAll.textContent = counts.all;
-                document.getElementById('count-train').textContent = counts.train;
-                document.getElementById('count-val').textContent = counts.val;
-                document.getElementById('count-test').textContent = counts.test;
-            }
-
-            // --- Filtering ---
-            var activeSplit = 'all';
-
-            {#document.getElementById('split-tabs').addEventListener('click', function (e) {#}
-            {#    var pill = e.target.closest('.tab-pill');#}
-            {#    if (!pill) return;#}
-            {#    e.preventDefault();#}
-            {#    this.querySelectorAll('.tab-pill').forEach(function (p) {#}
-            {#        p.classList.remove('is-active');#}
-            {#    });#}
-            {#    pill.classList.add('is-active');#}
-            {#    activeSplit = pill.dataset.split;#}
-            {#    applyFilters();#}
-            {#})
-                ;
-                #}
-
-                {#document.getElementById('status-pills').addEventListener('click', function (e) {#}
-                {#    var pill = e.target.closest('.tab-pill');#}
-                {#    if (!pill) return;#}
-                {#    e.preventDefault();#}
-                {#    this.querySelectorAll('.tab-pill').forEach(function (p) {#}
-                {#        p.classList.remove('is-active');#}
-                {#    });#}
-                {#    pill.classList.add('is-active');#}
-                {#    applyFilters();#}
-                {#})
-                    ;
-                    #}
-
-                    if (labelContainer) labelContainer.addEventListener('change', applyFilters);
-
-                    function applyFilters() {
-                        var statusEl = document.querySelector('[data-status]');
-                        var statusVal = statusEl ? statusEl.dataset.status || 'all' : 'all';
-                        var checkedLabels = [];
-                        document.querySelectorAll('#label-filters input[type="checkbox"]:checked').forEach(function (cb) {
-                            checkedLabels.push(cb.dataset.label);
-                        });
-
-                        var visibleCount = 0;
-                        cards.forEach(function (card) {
-                            var show = true;
-
-                            // Split filter
-                            if (activeSplit !== 'all' && card.dataset.split !== activeSplit) show = false;
-
-                            // Status filter
-                            if (statusVal === 'annotated' && card.dataset.annotated !== '1') show = false;
-                            if (statusVal === 'pending' && card.dataset.annotated !== '0') show = false;
-
-                            // Label filter
-                            if (checkedLabels.length > 0 && checkedLabels.length < Object.keys(labels).length) {
-                                var cardLabels = card.dataset.labels;
-                                if (cardLabels) {
-                                    var hasMatch = checkedLabels.some(function (l) {
-                                        return cardLabels.indexOf(l) !== -1;
-                                    });
-                                    if (!hasMatch) show = false;
-                                }
-                            }
-
-                            card.classList.toggle('is-hidden-filter', !show);
-                            if (show) visibleCount++;
-                        });
-
-                        var emptyState = document.getElementById('empty-state');
-                        if (visibleCount === 0) {
-                            emptyState.classList.remove('is-hidden');
-                        } else {
-                            emptyState.classList.add('is-hidden');
-                        }
-                    }
-
-                    // --- Settings modal ---
-                    var modal = document.getElementById('settings-modal');
-                    var configRaw = {{ project.configuration | tojson }};
-                    var augRaw = {{ project.augmentation | tojson }};
-                    var preRaw = {{ project.preprocessing | tojson }};
-
-                    function prettyJSON(raw) {
-                        try {
-                            return JSON.stringify(JSON.parse(raw), null, 2);
-                        } catch (e) {
-                            return raw || '{}';
-                        }
-                    }
-
-                    document.getElementById('settings-config').textContent = prettyJSON(configRaw);
-                    document.getElementById('settings-augmentation').textContent = prettyJSON(augRaw);
-                    document.getElementById('settings-preprocessing').textContent = prettyJSON(preRaw);
-
-                    document.getElementById('settings-btn').addEventListener('click', function () {
-                        modal.classList.add('is-active');
-                    });
-                    modal.querySelector('.modal-background').addEventListener('click', function () {
-                        modal.classList.remove('is-active');
-                    });
-                    modal.querySelector('.delete').addEventListener('click', function () {
-                        modal.classList.remove('is-active');
-                    });
-                    // --- Drop zone upload ---
-                    var dropZone = document.getElementById('drop-zone');
-                    var fileInput = document.getElementById('file-input');
-                    var uploadProgress = document.getElementById('upload-progress');
-                    var uploadBar = document.getElementById('upload-bar');
-                    var uploadStatus = document.getElementById('upload-status');
-                    var dropZoneText = document.getElementById('drop-zone-text');
-                    var projectId = '{{ project.id }}';
-
-                    dropZone.addEventListener('click', function () {
-                        fileInput.click();
-                    });
-                    fileInput.addEventListener('change', function () {
-                        if (fileInput.files.length > 0) {
-                            uploadFiles(fileInput.files);
-                            fileInput.value = '';
-                        }
-                    });
-
-                    dropZone.addEventListener('dragenter', function (e) {
-                        e.preventDefault();
-                        dropZone.classList.add('is-dragover');
-                    });
-                    dropZone.addEventListener('dragover', function (e) {
-                        e.preventDefault();
-                    });
-                    dropZone.addEventListener('dragleave', function () {
-                        dropZone.classList.remove('is-dragover');
-                    });
-                    dropZone.addEventListener('drop', function (e) {
-                        e.preventDefault();
-                        dropZone.classList.remove('is-dragover');
-                        if (e.dataTransfer.files.length > 0) {
-                            uploadFiles(e.dataTransfer.files);
-                        }
-                    });
-
-                    function uploadFiles(fileList) {
-                        var files = Array.from(fileList).filter(function (f) {
-                            return f.type.startsWith('image/');
-                        });
-                        if (files.length === 0) return;
-
-                        var total = files.length;
-                        var completed = 0;
-                        dropZoneText.classList.add('is-hidden');
-                        uploadProgress.classList.remove('is-hidden');
-                        uploadStatus.textContent = '0 / ' + total;
-                        uploadBar.value = 0;
-
-                        function uploadNext() {
-                            if (completed >= total) {
-                                uploadProgress.classList.add('is-hidden');
-                                dropZoneText.classList.remove('is-hidden');
-                                return;
-                            }
-                            var file = files[completed];
-                            var formData = new FormData();
-                            formData.append('file', file);
-
-                            var xhr = new XMLHttpRequest();
-                            xhr.open('POST', '/project/' + projectId + '/upload');
-                            xhr.upload.onprogress = function (e) {
-                                if (e.lengthComputable) {
-                                    var filePct = e.loaded / e.total;
-                                    var overall = ((completed + filePct) / total) * 100;
-                                    uploadBar.value = overall;
-                                }
-                            };
-                            xhr.onload = function () {
-                                completed++;
-                                uploadBar.value = (completed / total) * 100;
-                                uploadStatus.textContent = completed + ' / ' + total;
-                                if (xhr.status === 201) {
-                                    var data = JSON.parse(xhr.responseText);
-                                    appendCard(data);
-                                }
-                                uploadNext();
-                            };
-                            xhr.onerror = function () {
-                                completed++;
-                                uploadNext();
-                            };
-                            xhr.send(formData);
-                        }
-
-                        uploadNext();
-                    }
-
-                    function appendCard(data) {
-                        var grid = document.getElementById('image-grid');
-                        var col = document.createElement('div');
-                        col.className = 'column is-2-fullhd is-3-desktop is-4-tablet is-6-mobile file-card';
-                        col.dataset.split = '';
-                        col.dataset.annotated = '0';
-                        col.dataset.labels = '';
-                        col.innerHTML =
-                            '<a href="/project/' + projectId + '/annotate/' + data.id + '" class="card">' +
-                            '<div class="card-image">' +
-                            '<figure class="image is-4by3">' +
-                            '<img src="/files/' + data.id + '?key=small" alt="' + data.filename + '" loading="lazy">' +
-                            '</figure>' +
-                            '</div>' +
-                            '</a>';
-                        grid.appendChild(col);
-                        document.getElementById('empty-state').classList.add('is-hidden');
-                    }
+            function prettyJSON(raw) {
+                try {
+                    return JSON.stringify(JSON.parse(raw), null, 2);
+                } catch (e) {
+                    return raw || '{}';
                 }
-            )
-                ();
+            }
+
+            document.getElementById('settings-config').textContent = prettyJSON(configRaw);
+            document.getElementById('settings-augmentation').textContent = prettyJSON(augRaw);
+            document.getElementById('settings-preprocessing').textContent = prettyJSON(preRaw);
+
+            document.getElementById('settings-btn').addEventListener('click', function () {
+                modal.classList.add('is-active');
+            });
+            modal.querySelector('.modal-background').addEventListener('click', function () {
+                modal.classList.remove('is-active');
+            });
+            modal.querySelector('.delete').addEventListener('click', function () {
+                modal.classList.remove('is-active');
+            });
+
+            // --- Drop zone upload ---
+            var dropZone = document.getElementById('drop-zone');
+            var fileInput = document.getElementById('file-input');
+            var uploadProgress = document.getElementById('upload-progress');
+            var uploadBar = document.getElementById('upload-bar');
+            var uploadStatus = document.getElementById('upload-status');
+            var dropZoneText = document.getElementById('drop-zone-text');
+            var projectId = '{{ project.id }}';
+
+            dropZone.addEventListener('click', function () {
+                fileInput.click();
+            });
+            fileInput.addEventListener('change', function () {
+                if (fileInput.files.length > 0) {
+                    uploadFiles(fileInput.files);
+                    fileInput.value = '';
+                }
+            });
+
+            dropZone.addEventListener('dragenter', function (e) {
+                e.preventDefault();
+                dropZone.classList.add('is-dragover');
+            });
+            dropZone.addEventListener('dragover', function (e) {
+                e.preventDefault();
+            });
+            dropZone.addEventListener('dragleave', function () {
+                dropZone.classList.remove('is-dragover');
+            });
+            dropZone.addEventListener('drop', function (e) {
+                e.preventDefault();
+                dropZone.classList.remove('is-dragover');
+                if (e.dataTransfer.files.length > 0) {
+                    uploadFiles(e.dataTransfer.files);
+                }
+            });
+
+            function uploadFiles(fileList) {
+                var files = Array.from(fileList).filter(function (f) {
+                    return f.type.startsWith('image/');
+                });
+                if (files.length === 0) return;
+
+                var total = files.length;
+                var completed = 0;
+                dropZoneText.classList.add('is-hidden');
+                uploadProgress.classList.remove('is-hidden');
+                uploadStatus.textContent = '0 / ' + total;
+                uploadBar.value = 0;
+
+                function uploadNext() {
+                    if (completed >= total) {
+                        uploadProgress.classList.add('is-hidden');
+                        dropZoneText.classList.remove('is-hidden');
+                        return;
+                    }
+                    var file = files[completed];
+                    var formData = new FormData();
+                    formData.append('file', file);
+
+                    var xhr = new XMLHttpRequest();
+                    xhr.open('POST', '/project/' + projectId + '/upload');
+                    xhr.upload.onprogress = function (e) {
+                        if (e.lengthComputable) {
+                            var filePct = e.loaded / e.total;
+                            var overall = ((completed + filePct) / total) * 100;
+                            uploadBar.value = overall;
+                        }
+                    };
+                    xhr.onload = function () {
+                        completed++;
+                        uploadBar.value = (completed / total) * 100;
+                        uploadStatus.textContent = completed + ' / ' + total;
+                        if (xhr.status === 201) {
+                            var data = JSON.parse(xhr.responseText);
+                            appendCard(data);
+                        }
+                        uploadNext();
+                    };
+                    xhr.onerror = function () {
+                        completed++;
+                        uploadNext();
+                    };
+                    xhr.send(formData);
+                }
+
+                uploadNext();
+            }
+
+            function appendCard(data) {
+                var grid = document.getElementById('image-grid');
+                var col = document.createElement('div');
+                col.className = 'column is-2-fullhd is-3-desktop is-4-tablet is-6-mobile file-card';
+                col.innerHTML =
+                    '<a href="/project/' + projectId + '/annotate/' + data.id + '" class="card">' +
+                    '<div class="card-image">' +
+                    '<figure class="image is-4by3">' +
+                    '<img src="/files/' + data.id + '?key=small" alt="' + data.filename + '" loading="lazy">' +
+                    '</figure>' +
+                    '</div>' +
+                    '</a>';
+                grid.appendChild(col);
+                document.getElementById('empty-state').classList.add('is-hidden');
+            }
+        })();
     </script>
 {% endblock %}

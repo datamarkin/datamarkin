@@ -1,0 +1,31 @@
+{% macro render_pagination(pagination, base_url, extra_params={}) %}
+{% if pagination.total_pages > 1 %}
+<nav class="pagination is-small is-centered mt-4" role="navigation" aria-label="pagination">
+    {% set build_params = extra_params.copy() %}
+    {% if pagination.has_prev %}
+        {% set _ = build_params.update({"page": pagination.page - 1}) %}
+        <a class="pagination-previous" href="{{ base_url }}?{{ build_params | urlencode }}">Previous</a>
+    {% else %}
+        <a class="pagination-previous" disabled>Previous</a>
+    {% endif %}
+
+    {% if pagination.has_next %}
+        {% set _ = build_params.update({"page": pagination.page + 1}) %}
+        <a class="pagination-next" href="{{ base_url }}?{{ build_params | urlencode }}">Next</a>
+    {% else %}
+        <a class="pagination-next" disabled>Next</a>
+    {% endif %}
+
+    <ul class="pagination-list">
+        {% for p in range(1, pagination.total_pages + 1) %}
+            {% set _ = build_params.update({"page": p}) %}
+            <li>
+                <a class="pagination-link {{ 'is-current' if p == pagination.page }}"
+                   href="{{ base_url }}?{{ build_params | urlencode }}"
+                   aria-label="Go to page {{ p }}">{{ p }}</a>
+            </li>
+        {% endfor %}
+    </ul>
+</nav>
+{% endif %}
+{% endmacro %}
