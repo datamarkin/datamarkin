@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+
+{% block title %}New Project — Datamarkin{% endblock %}
+
+{% block content %}
+    <section class="section">
+        <div class="container" style="max-width: 600px;">
+            <div class="content">
+                <h1 class="is-size-3">Create a new project</h1>
+            </div>
+
+            <form method="POST" action="/project/new">
+                <div class="field">
+                    <label class="label">Name</label>
+                    <div class="control">
+                        <input class="input" type="text" name="name" placeholder="My project" required>
+                    </div>
+                </div>
+
+                <div class="field">
+                    <label class="label">Type</label>
+                    <div class="control">
+                        <div class="select is-fullwidth">
+                            <select name="type" required>
+                                <option value="object_detection">Object Detection</option>
+                                <option value="classification">Classification</option>
+                                <option value="segmentation">Segmentation</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="field">
+                    <label class="label">Labels</label>
+                    <div id="labels-container"></div>
+                    <button type="button" class="button is-small is-app mt-2" onclick="addLabel()">
+                        Add label
+                    </button>
+                </div>
+
+                <input type="hidden" name="labels" id="labels-json">
+
+                <hr>
+
+                <div class="field">
+                    <div class="control">
+                        <button type="submit" class="button is-app">Create project</button>
+                        <a href="/projects" class="button is-light ml-2">Cancel</a>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </section>
+
+    <script>
+        function addLabel(name, color) {
+            const container = document.getElementById('labels-container');
+            const row = document.createElement('div');
+            row.className = 'field has-addons mt-2';
+            row.innerHTML = `
+                <div class="control is-expanded">
+                    <input class="input label-name" type="text" placeholder="Label name" value="${name || ''}">
+                </div>
+                <div class="control">
+                    <input class="label-color" type="color" value="${color || '#3498db'}" style="height:40px; width:50px; border:1px solid #dbdbdb; border-radius:4px; cursor:pointer;">
+                </div>
+                <div class="control">
+                    <button type="button" class="button is-light" onclick="this.closest('.field').remove()">
+                        &times;
+                    </button>
+                </div>
+            `;
+            container.appendChild(row);
+        }
+
+        document.querySelector('form').addEventListener('submit', function() {
+            const labels = {};
+            document.querySelectorAll('#labels-container .field').forEach(row => {
+                const name = row.querySelector('.label-name').value.trim();
+                const color = row.querySelector('.label-color').value;
+                if (name) labels[name] = color;
+            });
+            document.getElementById('labels-json').value = JSON.stringify(labels);
+        });
+    </script>
+{% endblock %}

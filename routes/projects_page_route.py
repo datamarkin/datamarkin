@@ -1,8 +1,8 @@
 import json
 
-from flask import render_template, abort
+from flask import render_template, abort, request, redirect, url_for
 
-from queries import get_all_projects, get_project_by_id, get_project_files, get_file_by_id
+from queries import get_all_projects, get_project_by_id, get_project_files, get_file_by_id, create_project
 
 
 def projects_page_route(app_name):
@@ -11,6 +11,21 @@ def projects_page_route(app_name):
         app_name="Datamarkin",
         active_tab="projects",
         projects=get_all_projects(),
+    )
+
+
+def project_new_page_route():
+    if request.method == "POST":
+        name = request.form.get("name", "").strip()
+        project_type = request.form.get("type", "object_detection")
+        labels = request.form.get("labels") or None
+        project_id = create_project(name, project_type, labels)
+        return redirect(url_for("project", project_id=project_id))
+
+    return render_template(
+        "project_new.html",
+        app_name="Datamarkin",
+        active_tab="projects",
     )
 
 
