@@ -7,6 +7,9 @@ DB_PATH = DATA_DIR / "datamarkin.db"
 FILES_DIR = DATA_DIR / "files"
 FLASK_PORT = 5001
 
+GITHUB_OWNER = "datamarkin"
+GITHUB_REPO = "datamarkin"
+
 
 def file_path(filename: str) -> Path:
     prefix = filename[:3]
