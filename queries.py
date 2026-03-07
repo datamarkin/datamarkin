@@ -36,6 +36,22 @@ def get_file_by_id(file_id: str) -> dict | None:
     return dict(row) if row else None
 
 
+def insert_file(file_id, project_id, filename, extension, width, height, filesize):
+    conn = get_db()
+    ts = now()
+    conn.execute(
+        """INSERT INTO files
+           (id, project_id, filename, extension, width, height,
+            filesize, is_annotated, split, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        (file_id, project_id, filename, extension, width, height,
+         filesize, 0, None, ts, ts),
+    )
+    conn.commit()
+    conn.close()
+    return file_id
+
+
 def get_project_files(project_id: str) -> list[dict]:
     conn = get_db()
     rows = conn.execute(

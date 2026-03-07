@@ -35,8 +35,12 @@
         <div class="app-sidebar-header">
             <div class="sidebar-section">
                 <div class="drop-zone" id="drop-zone">
-                    {#                    <span class="drop-zone-icon">+</span>#}
-                    <span class="drop-zone-text">Drop images here</span>
+                    <span class="drop-zone-text" id="drop-zone-text">Drop images here or click to browse</span>
+                    <div class="upload-progress is-hidden" id="upload-progress">
+                        <progress class="progress is-small is-link" id="upload-bar" value="0" max="100"></progress>
+                        <span class="drop-zone-text" id="upload-status"></span>
+                    </div>
+                    <input type="file" id="file-input" multiple accept="image/*" style="display:none">
                 </div>
             </div>
         </div>
@@ -77,33 +81,28 @@
 
 {% block content %}
     <div class="image-grid-container">
-        {% if files %}
-            <div class="columns is-multiline is-mobile" id="image-grid">
-                {% for file in files %}
-                    <div class="column is-2-fullhd is-3-desktop is-4-tablet is-6-mobile file-card"
-                         data-split="{{ file.split or '' }}"
-                         data-annotated="{{ '1' if file.is_annotated else '0' }}"
-                         data-labels="{{ file.annotations or '' }}">
-                        <a href="/project/{{ project.id }}/annotate/{{ file.id }}" class="card">
-                            <div class="card-image">
-                                <figure class="image is-4by3">
-                                    <img src="{{ url_for('serve_file', file_id=file.id, key='small') }}"
-                                         alt="{{ file.filename }}" loading="lazy">
-                                </figure>
-                                {% if file.is_annotated %}
-                                    <span class="annotated-badge" title="Annotated">&#10003;</span>
-                                {% endif %}
-                            </div>
-                            {#                            <div class="card-content">#}
-                            {#                                <p class="has-text-truncated is-size-7">{{ file.filename }}</p>#}
-                            {#                            </div>#}
-                        </a>
-                    </div>
-                {% endfor %}
-            </div>
-        {% endif %}
-        <div class="empty-state is-hidden" id="empty-state">
-            <p class="has-text-grey has-text-centered py-6">No images match the current filters.</p>
+        <div class="columns is-multiline is-mobile" id="image-grid">
+            {% for file in files %}
+                <div class="column is-2-fullhd is-3-desktop is-4-tablet is-6-mobile file-card"
+                     data-split="{{ file.split or '' }}"
+                     data-annotated="{{ '1' if file.is_annotated else '0' }}"
+                     data-labels="{{ file.annotations or '' }}">
+                    <a href="/project/{{ project.id }}/annotate/{{ file.id }}" class="card">
+                        <div class="card-image">
+                            <figure class="image is-4by3">
+                                <img src="{{ url_for('serve_file', file_id=file.id, key='small') }}"
+                                     alt="{{ file.filename }}" loading="lazy">
+                            </figure>
+                            {% if file.is_annotated %}
+                                <span class="annotated-badge" title="Annotated">&#10003;</span>
+                            {% endif %}
+                        </div>
+                    </a>
+                </div>
+            {% endfor %}
+        </div>
+        <div class="empty-state {{ '' if not files else 'is-hidden' }}" id="empty-state">
+            <p class="has-text-grey has-text-centered py-6">No images yet. Drop or browse to upload.</p>
         </div>
     </div>
 
@@ -137,14 +136,16 @@
             }
 
             var labelContainer = document.getElementById('label-filters');
-            Object.keys(labels).forEach(function (name) {
-                var color = labels[name];
-                var label = document.createElement('label');
-                label.className = 'checkbox-line';
-                label.innerHTML = '<input type="checkbox" checked data-label="' + name + '"> ' +
-                    '<span class="label-checkbox-color" style="background:' + color + '"></span> ' + name;
-                labelContainer.appendChild(label);
-            });
+            if (labelContainer) {
+                Object.keys(labels).forEach(function (name) {
+                    var color = labels[name];
+                    var label = document.createElement('label');
+                    label.className = 'checkbox-line';
+                    label.innerHTML = '<input type="checkbox" checked data-label="' + name + '"> ' +
+                        '<span class="label-checkbox-color" style="background:' + color + '"></span> ' + name;
+                    labelContainer.appendChild(label);
+                });
+            }
 
             // --- Split counts ---
             var cards = document.querySelectorAll('.file-card');
@@ -153,10 +154,13 @@
                 var s = c.dataset.split;
                 if (counts[s] !== undefined) counts[s]++;
             });
-            document.getElementById('count-all').textContent = counts.all;
-            document.getElementById('count-train').textContent = counts.train;
-            document.getElementById('count-val').textContent = counts.val;
-            document.getElementById('count-test').textContent = counts.test;
+            var countAll = document.getElementById('count-all');
+            if (countAll) {
+                countAll.textContent = counts.all;
+                document.getElementById('count-train').textContent = counts.train;
+                document.getElementById('count-val').textContent = counts.val;
+                document.getElementById('count-test').textContent = counts.test;
+            }
 
             // --- Filtering ---
             var activeSplit = 'all';
@@ -188,10 +192,11 @@
                     ;
                     #}
 
-                    labelContainer.addEventListener('change', applyFilters);
+                    if (labelContainer) labelContainer.addEventListener('change', applyFilters);
 
                     function applyFilters() {
-                        var statusVal = document.querySelector('[data-status]').dataset.status || 'all';
+                        var statusEl = document.querySelector('[data-status]');
+                        var statusVal = statusEl ? statusEl.dataset.status || 'all' : 'all';
                         var checkedLabels = [];
                         document.querySelectorAll('#label-filters input[type="checkbox"]:checked').forEach(function (cb) {
                             checkedLabels.push(cb.dataset.label);
@@ -258,8 +263,25 @@
                     modal.querySelector('.delete').addEventListener('click', function () {
                         modal.classList.remove('is-active');
                     });
-                    // --- Drop zone drag-over feedback ---
+                    // --- Drop zone upload ---
                     var dropZone = document.getElementById('drop-zone');
+                    var fileInput = document.getElementById('file-input');
+                    var uploadProgress = document.getElementById('upload-progress');
+                    var uploadBar = document.getElementById('upload-bar');
+                    var uploadStatus = document.getElementById('upload-status');
+                    var dropZoneText = document.getElementById('drop-zone-text');
+                    var projectId = '{{ project.id }}';
+
+                    dropZone.addEventListener('click', function () {
+                        fileInput.click();
+                    });
+                    fileInput.addEventListener('change', function () {
+                        if (fileInput.files.length > 0) {
+                            uploadFiles(fileInput.files);
+                            fileInput.value = '';
+                        }
+                    });
+
                     dropZone.addEventListener('dragenter', function (e) {
                         e.preventDefault();
                         dropZone.classList.add('is-dragover');
@@ -273,7 +295,81 @@
                     dropZone.addEventListener('drop', function (e) {
                         e.preventDefault();
                         dropZone.classList.remove('is-dragover');
+                        if (e.dataTransfer.files.length > 0) {
+                            uploadFiles(e.dataTransfer.files);
+                        }
                     });
+
+                    function uploadFiles(fileList) {
+                        var files = Array.from(fileList).filter(function (f) {
+                            return f.type.startsWith('image/');
+                        });
+                        if (files.length === 0) return;
+
+                        var total = files.length;
+                        var completed = 0;
+                        dropZoneText.classList.add('is-hidden');
+                        uploadProgress.classList.remove('is-hidden');
+                        uploadStatus.textContent = '0 / ' + total;
+                        uploadBar.value = 0;
+
+                        function uploadNext() {
+                            if (completed >= total) {
+                                uploadProgress.classList.add('is-hidden');
+                                dropZoneText.classList.remove('is-hidden');
+                                return;
+                            }
+                            var file = files[completed];
+                            var formData = new FormData();
+                            formData.append('file', file);
+
+                            var xhr = new XMLHttpRequest();
+                            xhr.open('POST', '/project/' + projectId + '/upload');
+                            xhr.upload.onprogress = function (e) {
+                                if (e.lengthComputable) {
+                                    var filePct = e.loaded / e.total;
+                                    var overall = ((completed + filePct) / total) * 100;
+                                    uploadBar.value = overall;
+                                }
+                            };
+                            xhr.onload = function () {
+                                completed++;
+                                uploadBar.value = (completed / total) * 100;
+                                uploadStatus.textContent = completed + ' / ' + total;
+                                if (xhr.status === 201) {
+                                    var data = JSON.parse(xhr.responseText);
+                                    appendCard(data);
+                                }
+                                uploadNext();
+                            };
+                            xhr.onerror = function () {
+                                completed++;
+                                uploadNext();
+                            };
+                            xhr.send(formData);
+                        }
+
+                        uploadNext();
+                    }
+
+                    function appendCard(data) {
+                        var grid = document.getElementById('image-grid');
+                        var col = document.createElement('div');
+                        col.className = 'column is-2-fullhd is-3-desktop is-4-tablet is-6-mobile file-card';
+                        col.dataset.split = '';
+                        col.dataset.annotated = '0';
+                        col.dataset.labels = '';
+                        col.innerHTML =
+                            '<a href="/project/' + projectId + '/annotate/' + data.id + '" class="card">' +
+                            '<div class="card-image">' +
+                            '<figure class="image is-4by3">' +
+                            '<img src="/files/' + data.id + '?key=small" alt="' + data.filename + '" loading="lazy">' +
+                            '</figure>' +
+                            '</div>' +
+                            '</a>';
+                        grid.appendChild(col);
+                        document.getElementById('empty-state').classList.add('is-hidden');
+                    }
                 }
             )
                 ();

@@ -402,3 +402,13 @@ hr {
 .drop-zone-text {
     font-size: 12px;
 }
+
+.upload-progress {
+    width: 100%;
+    padding: 0 4px;
+}
+
+.upload-progress .progress {
+    height: 6px;
+    margin-bottom: 4px;
+}

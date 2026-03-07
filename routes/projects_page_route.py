@@ -1,8 +1,12 @@
 import json
+import os
 
-from flask import render_template, abort, request, redirect, url_for
+from flask import render_template, abort, request, redirect, url_for, jsonify
+from PIL import Image
 
-from queries import get_all_projects, get_project_by_id, get_project_files, get_file_by_id, create_project
+from config import file_path as get_file_path
+from db import new_id
+from queries import get_all_projects, get_project_by_id, get_project_files, get_file_by_id, create_project, insert_file
 
 
 def projects_page_route(app_name):
@@ -43,6 +47,41 @@ def project_page_route(project_id: str):
         project=project,
         files=files,
     )
+
+
+ALLOWED_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.bmp', '.webp', '.tiff'}
+
+
+def project_upload_route(project_id: str):
+    project = get_project_by_id(project_id)
+    if not project:
+        abort(404)
+
+    if 'file' not in request.files:
+        abort(400)
+
+    f = request.files['file']
+    ext = os.path.splitext(f.filename)[1].lower()
+    if ext not in ALLOWED_EXTENSIONS:
+        abort(400)
+
+    file_id = new_id()
+    filename = f"{file_id}{ext}"
+    dest = get_file_path(filename)
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    f.save(str(dest))
+
+    try:
+        with Image.open(dest) as img:
+            width, height = img.size
+    except Exception:
+        dest.unlink(missing_ok=True)
+        abort(400)
+
+    filesize = dest.stat().st_size
+    insert_file(file_id, project_id, filename, ext, width, height, filesize)
+
+    return jsonify({"id": file_id, "filename": filename, "width": width, "height": height}), 201
 
 
 def project_image_page_route(project_id: str, file_id: str):
