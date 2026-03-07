@@ -14,16 +14,9 @@
     {% block titlebar %}
         <div class="titlebar">
             <div class="titlebar-left">
-                <button class="button is-small is-app" onclick="window.history.back()" title="Back">
-                    <span class="icon is-small">
-                      {% include 'icons/chevron-left.svg' %}
-                    </span>
-                </button>
-                <button class="button is-small is-app" onclick="window.history.forward()" title="Forward">
-                    <span class="icon is-small">
-                      {% include 'icons/chevron-right.svg' %}
-                    </span>
-                </button>
+                <a href="/" class="button is-small is-app" title="Datamarkin">
+                    datamarkin
+                </a>
             </div>
             <div class="titlebar-center">
                 <nav class="tab-pills">

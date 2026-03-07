@@ -371,7 +371,6 @@ hr {
 .button:hover .is-hidden-label {
     max-width: 8em;
     opacity: 1;
-    margin-right: 0.35em;
 }
 
 /* ---- Drop zone ---- */
