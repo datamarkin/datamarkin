@@ -412,3 +412,14 @@ hr {
     height: 6px;
     margin-bottom: 4px;
 }
+
+.project-item .box {
+    background: rgba(0, 0, 0, 0.04);
+    box-shadow: unset;
+}
+
+.project-item a.box:hover {
+    box-shadow: unset;
+    background: rgba(0, 0, 0, 0.06);
+    /*box-shadow: rgba(0, 0, 0, 0.08) 0px 0px 0px 1px;*/
+}
