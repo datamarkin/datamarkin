@@ -66,11 +66,11 @@
         <div class="app-sidebar-header">
             <p class="sidebar-heading">Labels</p>
             <div class="sidebar-label-list" id="label-list">
-                {% for name, color in labels.items() %}
+                {% for label in labels %}
                     <button class="button is-small is-app is-fullwidth is-justify-content-left sidebar-label-btn {{ 'is-active' if loop.first }}"
-                            data-label="{{ name }}">
-                        <span class="label-checkbox-color" style="background:{{ color }}"></span>
-                        <span>{{ name }}</span>
+                            data-label="{{ label.id }}">
+                        <span class="label-checkbox-color" style="background:#{{ label.color }}"></span>
+                        <span>{{ label.name }}</span>
                     </button>
                 {% endfor %}
             </div>
