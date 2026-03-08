@@ -11,7 +11,7 @@
 
                     <div class="column is-6 project-item">
                         <a title="Project name" href="/project/new"
-                           class="media box box-with-border p-4">
+                           class="media box box-with-border p-4 is-align-items-center">
                             <figure class="media-left">
                                 <p class="image is-64x64">
                                     {% include 'icons/plus.svg' %}
@@ -38,7 +38,7 @@
                     {% for project in projects %}
                         <div class="column is-6 project-item">
                             <a title="{{ project.name }}" href="/project/{{ project.id }}"
-                               class="media box box-with-border p-4">
+                               class="media box box-with-border p-4 is-align-items-center">
                                 <figure class="media-left">
                                     <p class="image is-64x64">
                                         <img style="border-radius: 4px;"
