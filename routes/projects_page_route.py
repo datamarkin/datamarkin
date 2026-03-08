@@ -63,11 +63,17 @@ def project_page_route(project_id: str):
         has_annotations=has_annotations,
     )
 
+    try:
+        labels = json.loads(project["labels"]) or []
+    except (json.JSONDecodeError, TypeError):
+        labels = []
+
     return render_template(
         "project.html",
         app_name="Datamarkin",
         active_tab="project_detail",
         project=project,
+        labels=labels,
         files=result["items"],
         pagination=result,
         active_filter=active_filter,
