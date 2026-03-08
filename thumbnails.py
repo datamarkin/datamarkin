@@ -5,7 +5,7 @@ from config import DATA_DIR
 THUMBS_DIR = DATA_DIR / "thumbs"
 
 PRESETS = {
-    "small":       {"op": "contain", "size": (100, 100)},
+    "small":       {"op": "contain", "size": (480, 480)},
     "medium":      {"op": "contain", "size": (300, 300)},
     "cover_small": {"op": "cover",   "size": (100, 100)},
     "square":      {"op": "fit",     "size": (200, 200)},

@@ -199,7 +199,7 @@ hr {
 }
 
 .file-card .card {
-    border-radius: 8px;
+    border-radius: 0.75rem;
     cursor: pointer;
     position: relative;
     transition: box-shadow 0.15s;
