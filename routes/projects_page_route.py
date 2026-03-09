@@ -131,9 +131,14 @@ def project_image_page_route(project_id: str, file_id: str):
     )
 
     try:
-        labels = json.loads(project["labels"]) or {}
+        labels = json.loads(project["labels"]) or []
     except (json.JSONDecodeError, TypeError):
-        labels = {}
+        labels = []
+
+    try:
+        annotations = json.loads(current_file["annotations"]) if current_file["annotations"] else None
+    except (json.JSONDecodeError, TypeError):
+        annotations = None
 
     return render_template(
         "project_image.html",
@@ -142,4 +147,5 @@ def project_image_page_route(project_id: str, file_id: str):
         current_file=current_file,
         current_index=current_index,
         labels=labels,
+        annotations=annotations,
     )
