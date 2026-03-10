@@ -53,13 +53,13 @@
         <div class="app-sidebar-body">
             <div class="sidebar-section">
                 <p class="sidebar-heading">Labels</p>
-                {% for label in labels %}
+                {% for label in project.labels %}
                     <button class="button is-small is-app is-fullwidth is-justify-content-left">
                         <span class="label-checkbox-color" style="background:#{{ label.color }}"></span>
                         <span>{{ label.name }}</span>
                     </button>
                 {% endfor %}
-                {% if not labels %}
+                {% if not project.labels %}
                     <p class="has-text-grey is-size-7">No labels defined</p>
                 {% endif %}
             </div>
@@ -121,34 +121,19 @@
             </header>
             <section class="modal-card-body">
                 <h3 class="is-size-5 mb-2">Configuration</h3>
-                <pre id="settings-config"></pre>
+                <pre>{{ project.configuration | tojson(indent=2) }}</pre>
                 <h3 class="is-size-5 mt-4 mb-2">Augmentation</h3>
-                <pre id="settings-augmentation"></pre>
+                <pre>{{ project.augmentation | tojson(indent=2) }}</pre>
                 <h3 class="is-size-5 mt-4 mb-2">Preprocessing</h3>
-                <pre id="settings-preprocessing"></pre>
+                <pre>{{ project.preprocessing | tojson(indent=2) }}</pre>
             </section>
         </div>
     </div>
 
     <script>
         (function () {
-            // --- Settings modal ---
+            // --- Settings modal toggle only ---
             var modal = document.getElementById('settings-modal');
-            var configRaw = {{ project.configuration | tojson }};
-            var augRaw = {{ project.augmentation | tojson }};
-            var preRaw = {{ project.preprocessing | tojson }};
-
-            function prettyJSON(raw) {
-                try {
-                    return JSON.stringify(JSON.parse(raw), null, 2);
-                } catch (e) {
-                    return raw || '{}';
-                }
-            }
-
-            document.getElementById('settings-config').textContent = prettyJSON(configRaw);
-            document.getElementById('settings-augmentation').textContent = prettyJSON(augRaw);
-            document.getElementById('settings-preprocessing').textContent = prettyJSON(preRaw);
 
             document.getElementById('settings-btn').addEventListener('click', function () {
                 modal.classList.add('is-active');
