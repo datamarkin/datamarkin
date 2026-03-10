@@ -395,17 +395,15 @@ def seed(fresh=False):
 
             if random.random() < ANNOTATION_RATE:
                 annotations = json.dumps(generate_annotation(proj_type, labels_list))
-                is_annotated = 1
                 annotated_count += 1
             else:
                 annotations = None
-                is_annotated = 0
 
             conn.execute(
                 """INSERT INTO files
                    (id, project_id, filename, extension, width, height,
-                    filesize, is_annotated, split, annotations, created_at, updated_at)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    filesize, split, annotations, created_at, updated_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     file_id,
                     proj_id,
@@ -414,7 +412,6 @@ def seed(fresh=False):
                     w,
                     h,
                     filesize,
-                    is_annotated,
                     split,
                     annotations,
                     ts,

@@ -78,11 +78,12 @@
         <div class="app-sidebar-body">
             <div class="thumb-grid">
                 {% for file in files %}
+                    {% set has_annot = file.annotations and file.annotations not in ('', '[]', 'null') %}
                     <a href="/project/{{ project.id }}/{{ file.id }}"
                        class="thumb-item {{ 'is-active' if file.id == current_file.id }}">
                         <img src="{{ url_for('serve_file', file_id=file.id) }}" alt="{{ file.filename }}"
                              loading="lazy">
-                        {% if file.is_annotated %}
+                        {% if has_annot %}
                             <span class="annotated-badge annotated-badge-sm">&#10003;</span>
                         {% endif %}
                     </a>

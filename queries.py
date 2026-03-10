@@ -132,10 +132,10 @@ def insert_file(file_id, project_id, filename, extension, width, height, filesiz
     conn.execute(
         """INSERT INTO files
            (id, project_id, filename, extension, width, height,
-            filesize, is_annotated, split, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            filesize, split, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (file_id, project_id, filename, extension, width, height,
-         filesize, 0, None, ts, ts),
+         filesize, None, ts, ts),
     )
     conn.commit()
     conn.close()

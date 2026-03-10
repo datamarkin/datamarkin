@@ -46,7 +46,6 @@ def init_db() -> None:
             height          INTEGER,
             filesize        INTEGER,
             checksum        TEXT,
-            is_annotated    INTEGER DEFAULT 0,
             split           TEXT,
             sort_order      INTEGER DEFAULT 0,
             annotations     TEXT,
