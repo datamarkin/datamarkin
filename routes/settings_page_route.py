@@ -10,7 +10,6 @@ def settings_page_route():
     variants = list(VARIANT_URLS.keys())
     return render_template(
         "settings.html",
-        active_tab="settings",
         sam_status=status,
         sam_variants=variants,
     )
