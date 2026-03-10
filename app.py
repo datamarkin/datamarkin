@@ -1,12 +1,9 @@
-from flask import Flask, render_template, send_file, abort, request
-from config import file_path
-from thumbnails import PRESETS, get_or_create_thumb
-
+from flask import Flask, render_template
 from db import init_db
-from queries import get_file_by_id
 from routes.projects_page_route import projects_page_route,project_new_page_route, project_upload_route, project_image_page_route
 from routes.project_page_route import project_page_route
 from routes.settings_page_route import settings_page_route
+from routes.files_route import files_route
 from routes.api import api
 from routes.sam3_api import sam3_api
 
@@ -55,20 +52,4 @@ def create_app() -> Flask:
 
     @app.route("/files/<file_id>")
     def serve_file(file_id):
-        file_row = get_file_by_id(file_id)
-        if not file_row:
-            abort(404)
-        filepath = file_path(file_row["filename"])
-        if not filepath.exists():
-            abort(404)
-
-        key = request.args.get("key")
-        if key is not None:
-            if key not in PRESETS:
-                abort(400)
-            thumb = get_or_create_thumb(filepath, file_id, key)
-            return send_file(thumb, mimetype="image/jpeg")
-
-        return send_file(filepath)
-
-    return app
+        return files_route(file_id)
