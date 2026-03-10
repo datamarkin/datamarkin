@@ -4,7 +4,8 @@ from thumbnails import PRESETS, get_or_create_thumb
 
 from db import init_db
 from queries import get_file_by_id
-from routes.projects_page_route import projects_page_route, project_new_page_route, project_page_route, project_upload_route, project_image_page_route
+from routes.projects_page_route import projects_page_route,project_new_page_route, project_upload_route, project_image_page_route
+from routes.project_page_route import project_page_route
 from routes.settings_page_route import settings_page_route
 from routes.api import api
 from routes.sam3_api import sam3_api
@@ -31,11 +32,12 @@ def create_app() -> Flask:
     def project(project_id):
         return project_page_route(project_id)
 
+    #TODO this is not a good file upload route
     @app.route("/project/<project_id>/upload", methods=["POST"])
     def project_upload(project_id):
         return project_upload_route(project_id)
 
-    @app.route("/project/<project_id>/annotate/<file_id>")
+    @app.route("/project/<project_id>/<file_id>")
     def project_image(project_id, file_id):
         return project_image_page_route(project_id, file_id)
 
