@@ -81,7 +81,7 @@
                     {% set has_annot = file.annotations and file.annotations not in ('', '[]', 'null') %}
                     <a href="/project/{{ project.id }}/{{ file.id }}"
                        class="thumb-item {{ 'is-active' if file.id == current_file.id }}">
-                        <img src="{{ url_for('serve_file', file_id=file.id) }}" alt="{{ file.filename }}"
+                        <img src="{{ url_for('serve_file', file_id=file.id, key='small') }}" alt="{{ file.filename }}"
                              loading="lazy">
                         {% if has_annot %}
                             <span class="annotated-badge annotated-badge-sm">&#10003;</span>
@@ -98,7 +98,7 @@
 
 {% block content %}
     <div class="annotate-image-container">
-        <img id="annotate-image" src="{{ url_for('serve_file', file_id=current_file.id) }}" alt="{{ current_file.filename }}">
+        <img id="annotate-image" src="{{ url_for('serve_file', file_id=current_file.id, key='original') }}" alt="{{ current_file.filename }}">
     </div>
 
     <script src="{{ url_for('static', filename='js/markin.js') }}"></script>

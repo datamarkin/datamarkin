@@ -3,7 +3,7 @@ import os
 from flask import render_template, abort, request, redirect, url_for, jsonify
 from PIL import Image
 
-from config import file_path as get_file_path
+from config import file_path as get_file_path, ALLOWED_EXTENSIONS
 from db import new_id
 from db_models import Project, File
 from queries import get_all_projects, get_project_by_id, get_project_files, get_file_by_id, create_project, insert_file
@@ -28,8 +28,6 @@ def project_new_page_route():
         "project_new.html",
         app_name="Datamarkin",
     )
-
-ALLOWED_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.bmp', '.webp', '.tiff'}
 
 
 def project_upload_route(project_id: str):

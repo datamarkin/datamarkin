@@ -10,7 +10,7 @@ MODELS_DIR = DATA_DIR / "models"
 SAM_MODELS_DIR = MODELS_DIR / "sam3"
 FLASK_PORT = 5001
 
-ALLOWED_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.bmp', '.webp', '.tiff'}
+ALLOWED_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.bmp', '.webp', '.tiff', '.tif'}
 
 GITHUB_OWNER = "datamarkin"
 GITHUB_REPO = "datamarkin"
