@@ -85,7 +85,7 @@
             {% for file in files %}
                 {% set has_annot = file.annotations and file.annotations not in ('', '[]', 'null') %}
                 <div class="column is-2-fullhd is-3-desktop is-4-tablet is-6-mobile file-card">
-                    <a href="/project/{{ project.id }}/annotate/{{ file.id }}" class="card">
+                    <a href="/project/{{ project.id }}/{{ file.id }}" class="card">
                         <div class="card-image">
                             <figure class="image is-4by3">
                                 <img src="{{ url_for('serve_file', file_id=file.id, key='small') }}"
@@ -254,7 +254,7 @@
                 var col = document.createElement('div');
                 col.className = 'column is-2-fullhd is-3-desktop is-4-tablet is-6-mobile file-card';
                 col.innerHTML =
-                    '<a href="/project/' + projectId + '/annotate/' + data.id + '" class="card">' +
+                    '<a href="/project/' + projectId + '/' + data.id + '" class="card">' +
                     '<div class="card-image">' +
                     '<figure class="image is-4by3">' +
                     '<img src="/files/' + data.id + '?key=small" alt="' + data.filename + '" loading="lazy">' +

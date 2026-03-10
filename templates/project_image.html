@@ -78,7 +78,7 @@
         <div class="app-sidebar-body">
             <div class="thumb-grid">
                 {% for file in files %}
-                    <a href="/project/{{ project.id }}/annotate/{{ file.id }}"
+                    <a href="/project/{{ project.id }}/{{ file.id }}"
                        class="thumb-item {{ 'is-active' if file.id == current_file.id }}">
                         <img src="{{ url_for('serve_file', file_id=file.id) }}" alt="{{ file.filename }}"
                              loading="lazy">
@@ -200,9 +200,9 @@
                 if (window._annotator && window._annotator.getSelectedElement()) return;
 
                 if (e.key === 'ArrowLeft' && currentIndex > 0) {
-                    window.location.href = '/project/' + projectId + '/annotate/' + files[currentIndex - 1].id;
+                    window.location.href = '/project/' + projectId + '/' + files[currentIndex - 1].id;
                 } else if (e.key === 'ArrowRight' && currentIndex < files.length - 1) {
-                    window.location.href = '/project/' + projectId + '/annotate/' + files[currentIndex + 1].id;
+                    window.location.href = '/project/' + projectId + '/' + files[currentIndex + 1].id;
                 }
             });
         })();
