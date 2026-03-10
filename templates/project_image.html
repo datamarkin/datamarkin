@@ -90,18 +90,25 @@
                 {% endfor %}
             </div>
         </div>
-    <div class="app-sidebar-footer">
-        <p>filename.jpg</p>
-    </div>
+        <div class="app-sidebar-footer">
+            <p>filename.jpg</p>
+        </div>
     </aside>
 {% endblock %}
 
 {% block content %}
-    <div class="annotate-image-container">
-        <img id="annotate-image" src="{{ url_for('serve_file', file_id=current_file.id, key='original') }}" alt="{{ current_file.filename }}">
+    <div id="annotations-container" class="is-align-content-center p-0 m-0">
+        <div id="zoomist-container" class="zoomist-container"
+             style="aspect-ratio: 1.328282828;">
+            <div class="zoomist-wrapper">
+                <div class="zoomist-image">
+                    <img id="annotate-image" src="{{ url_for('serve_file', file_id=current_file.id, key='original') }}"
+                         alt="{{ current_file.filename }}">
+                </div>
+            </div>
+        </div>
     </div>
 
-    <script src="{{ url_for('static', filename='js/markin.js') }}"></script>
     <script>
         (function () {
             // Data from server
@@ -115,12 +122,15 @@
 
             // Build label lookup map: id -> {name, color, keypoints}
             var labelMap = {};
-            labels.forEach(function (l) { labelMap[l.id] = l; });
+            labels.forEach(function (l) {
+                labelMap[l.id] = l;
+            });
 
             // Coordinate converters (normalized 0-1 -> pixel)
             function dbBboxToPixelBbox(b) {
                 return [b[0] * imageWidth, b[1] * imageHeight, (b[0] + b[2]) * imageWidth, (b[1] + b[3]) * imageHeight];
             }
+
             function dbSegmentationToPixel(seg) {
                 var out = [];
                 for (var i = 0; i < seg.length; i += 2) {
@@ -128,11 +138,17 @@
                 }
                 return out;
             }
+
             function dbKeypointsToPixel(kps, labelObj) {
                 var kpDefs = (labelObj && labelObj.keypoints) || [];
                 return kps.map(function (kp) {
-                    var def = kpDefs.find(function (d) { return d.id === kp.id; });
-                    return { name: def ? def.name : 'kp-' + kp.id, point: [kp.point[0] * imageWidth, kp.point[1] * imageHeight] };
+                    var def = kpDefs.find(function (d) {
+                        return d.id === kp.id;
+                    });
+                    return {
+                        name: def ? def.name : 'kp-' + kp.id,
+                        point: [kp.point[0] * imageWidth, kp.point[1] * imageHeight]
+                    };
                 });
             }
 
@@ -207,5 +223,12 @@
                 }
             });
         })();
+    </script>
+    <script defer>
+        const zoomist = new Zoomist(".zoomist-container", {
+            smooth: true,
+            bounds: true,
+            maxScale: 8
+        });
     </script>
 {% endblock %}
