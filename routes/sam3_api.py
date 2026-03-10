@@ -17,7 +17,7 @@ from flask import Blueprint, jsonify, request
 from config import SAM_MODELS_DIR, file_path as get_file_path
 from queries import get_file_by_id
 
-sam_api = Blueprint("sam_api", __name__, url_prefix="/api/sam")
+sam3_api = Blueprint("sam_api", __name__, url_prefix="/api/sam")
 
 
 def _ok(data, status=200):
@@ -32,7 +32,7 @@ def _err(message, code, status):
 # Status
 # ---------------------------------------------------------------------------
 
-@sam_api.route("/status", methods=["GET"])
+@sam3_api.route("/status", methods=["GET"])
 def sam_status():
     from sam3_backend.status import get_sam_status
     status = get_sam_status(SAM_MODELS_DIR)
@@ -43,7 +43,7 @@ def sam_status():
 # Encode
 # ---------------------------------------------------------------------------
 
-@sam_api.route("/encode", methods=["POST"])
+@sam3_api.route("/encode", methods=["POST"])
 def sam_encode():
     body = request.get_json(silent=True) or {}
     file_id = body.get("file_id")
@@ -77,7 +77,7 @@ def sam_encode():
 # Predict
 # ---------------------------------------------------------------------------
 
-@sam_api.route("/predict", methods=["POST"])
+@sam3_api.route("/predict", methods=["POST"])
 def sam_predict():
     body = request.get_json(silent=True) or {}
     embedding_id = body.get("embedding_id")
@@ -113,7 +113,7 @@ def sam_predict():
 # Download
 # ---------------------------------------------------------------------------
 
-@sam_api.route("/download", methods=["POST"])
+@sam3_api.route("/download", methods=["POST"])
 def start_download():
     body = request.get_json(silent=True) or {}
     variant = body.get("variant")
@@ -133,7 +133,7 @@ def start_download():
     return _ok({"variant": variant, "state": "downloading"})
 
 
-@sam_api.route("/download/<variant>", methods=["GET"])
+@sam3_api.route("/download/<variant>", methods=["GET"])
 def download_progress(variant: str):
     from sam3_backend import downloader
     state = downloader.progress(variant)
@@ -144,7 +144,7 @@ def download_progress(variant: str):
 # Unload
 # ---------------------------------------------------------------------------
 
-@sam_api.route("/unload", methods=["POST"])
+@sam3_api.route("/unload", methods=["POST"])
 def sam_unload():
     try:
         from sam3_backend import get_sam_backend

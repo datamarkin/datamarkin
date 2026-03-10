@@ -7,7 +7,7 @@ from queries import get_file_by_id
 from routes.projects_page_route import projects_page_route, project_new_page_route, project_page_route, project_upload_route, project_image_page_route
 from routes.settings_page_route import settings_page_route
 from routes.api import api
-from routes.sam_api import sam_api
+from routes.sam3_api import sam3_api
 
 
 def create_app() -> Flask:
@@ -16,7 +16,7 @@ def create_app() -> Flask:
 
     init_db()
     app.register_blueprint(api)
-    app.register_blueprint(sam_api)
+    app.register_blueprint(sam3_api)
 
     @app.route("/")
     @app.route("/projects")
