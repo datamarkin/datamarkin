@@ -51,7 +51,7 @@ def create_app() -> Flask:
     @app.route("/")
     @app.route("/projects")
     def projects():
-        return projects_page_route("Datamarkin")
+        return projects_page_route()
 
     @app.route("/project/new", methods=["GET", "POST"])
     def project_new():

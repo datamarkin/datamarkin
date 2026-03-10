@@ -9,7 +9,7 @@ from db import new_id
 from queries import get_all_projects, get_project_by_id, get_project_files, get_file_by_id, create_project, insert_file
 
 
-def projects_page_route(app_name):
+def projects_page_route():
     return render_template(
         "projects.html",
         projects=get_all_projects(),
