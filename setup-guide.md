@@ -3,14 +3,14 @@
 ## Requirements
 
 - macOS (Apple Silicon)
-- Python 3.10+
+- Python 3.13+
 - Conda (recommended) or pip
 
 ## Setup
 
 ```bash
 # Create environment
-conda create -n datamarkin python=3.10 -y
+conda create -n datamarkin python=3.13 -y
 conda activate datamarkin
 
 # Install dependencies
