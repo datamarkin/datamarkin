@@ -47,6 +47,23 @@ class SAMBackend(ABC):
         ...
 
     @abstractmethod
+    def predict_text(
+        self,
+        embedding_id: str,
+        text_prompt: str,
+        width: int,
+        height: int,
+        confidence_threshold: float = 0.3,
+    ) -> list[dict]:
+        """
+        Text-grounded mask prediction on a cached embedding.
+
+        Returns: [{"segmentation": [x1,y1,...], "bbox": [x,y,w,h], "score": float, "label": str}]
+        All coordinates normalized 0-1.
+        """
+        ...
+
+    @abstractmethod
     def unload(self) -> None:
         """Release model weights from memory."""
         ...
@@ -68,6 +85,9 @@ class UnavailableBackend(SAMBackend):
         raise RuntimeError(f"SAM backend unavailable: {self._reason}")
 
     def predict(self, embedding_id, prompts, width, height) -> list[dict]:
+        raise RuntimeError(f"SAM backend unavailable: {self._reason}")
+
+    def predict_text(self, embedding_id, text_prompt, width, height, confidence_threshold=0.3) -> list[dict]:
         raise RuntimeError(f"SAM backend unavailable: {self._reason}")
 
     def unload(self) -> None:

@@ -110,6 +110,101 @@ def sam_predict():
 
 
 # ---------------------------------------------------------------------------
+# Text predict (cached embedding)
+# ---------------------------------------------------------------------------
+
+@sam3_api.route("/text", methods=["POST"])
+def sam_text():
+    body = request.get_json(silent=True) or {}
+    embedding_id = body.get("embedding_id")
+    text_prompt = body.get("text_prompt")
+    width = body.get("width")
+    height = body.get("height")
+    confidence_threshold = body.get("confidence_threshold", 0.3)
+
+    if not embedding_id:
+        return _err("'embedding_id' is required", "missing_fields", 400)
+    if not text_prompt:
+        return _err("'text_prompt' is required", "missing_fields", 400)
+    if width is None or height is None:
+        return _err("'width' and 'height' are required", "missing_fields", 400)
+
+    try:
+        from sam3_backend import get_sam_backend
+        backend = get_sam_backend()
+    except Exception as exc:
+        return _err(str(exc), "backend_error", 500)
+
+    if not backend.is_available():
+        return _err("SAM backend not available", "backend_unavailable", 503)
+
+    try:
+        masks = backend.predict_text(
+            embedding_id, text_prompt, int(width), int(height), float(confidence_threshold)
+        )
+    except KeyError as exc:
+        return _err(str(exc), "embedding_not_found", 404)
+    except Exception as exc:
+        return _err(str(exc), "predict_failed", 500)
+
+    return _ok({"masks": masks})
+
+
+# ---------------------------------------------------------------------------
+# Text batch (encode + multi-label detection in one call)
+# ---------------------------------------------------------------------------
+
+@sam3_api.route("/text_batch", methods=["POST"])
+def sam_text_batch():
+    body = request.get_json(silent=True) or {}
+    file_id = body.get("file_id")
+    text_prompts = body.get("text_prompts", [])
+    confidence_threshold = body.get("confidence_threshold", 0.3)
+
+    if not file_id:
+        return _err("'file_id' is required", "missing_fields", 400)
+    if not text_prompts:
+        return _err("'text_prompts' must be a non-empty list", "missing_fields", 400)
+
+    file_row = get_file_by_id(file_id)
+    if not file_row:
+        return _err("File not found", "not_found", 404)
+
+    image_path = get_file_path(file_row["filename"])
+    if not image_path.exists():
+        return _err("Image file not found on disk", "file_missing", 404)
+
+    try:
+        from PIL import Image as PILImage
+        with PILImage.open(image_path) as img:
+            width, height = img.size
+    except Exception as exc:
+        return _err(f"Failed to read image: {exc}", "image_error", 500)
+
+    try:
+        backend = _get_loaded_backend(None)
+    except RuntimeError as exc:
+        return _err(str(exc), "backend_unavailable", 503)
+
+    try:
+        embedding_id = backend.encode_image(image_path)
+    except Exception as exc:
+        return _err(str(exc), "encode_failed", 500)
+
+    detections = []
+    for prompt in text_prompts:
+        try:
+            masks = backend.predict_text(
+                embedding_id, prompt, width, height, float(confidence_threshold)
+            )
+            detections.extend(masks)
+        except Exception as exc:
+            return _err(f"Text prediction failed for '{prompt}': {exc}", "predict_failed", 500)
+
+    return _ok({"detections": detections})
+
+
+# ---------------------------------------------------------------------------
 # Download
 # ---------------------------------------------------------------------------
 

@@ -1,15 +1,9 @@
 """
 SAM3 backend factory.
 
-Selects the appropriate backend based on the current platform:
-- darwin  → MLX backend (Apple Silicon, uses mlx-sam3 library)
-- other   → Torch/CUDA backend
-
-Backends are only instantiated inside try/except ImportError so missing
-frameworks fail silently. The app never crashes on startup.
+Single unified backend for all platforms (macOS/CUDA/CPU).
+Install mlx-sam3 on Apple Silicon or sam3 on CUDA — both expose the same API.
 """
-
-import sys
 
 from sam3_backend.base import SAMBackend, UnavailableBackend
 from sam3_backend.status import get_sam_status
@@ -23,18 +17,11 @@ def get_sam_backend() -> SAMBackend:
     if _backend is not None:
         return _backend
 
-    if sys.platform == "darwin":
-        try:
-            from sam3_backend.mlx_backend import MLXBackend
-            _backend = MLXBackend()
-        except ImportError:
-            _backend = UnavailableBackend("mlx-sam3 not installed")
-    else:
-        try:
-            from sam3_backend.torch_backend import TorchBackend
-            _backend = TorchBackend()
-        except ImportError:
-            _backend = UnavailableBackend("torch / sam-2 not installed")
+    try:
+        from sam3_backend.mlx_backend import MLXBackend
+        _backend = MLXBackend()
+    except ImportError:
+        _backend = UnavailableBackend("sam3 not installed (pip install mlx-sam3 or sam3)")
 
     return _backend
 

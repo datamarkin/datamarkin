@@ -10,20 +10,12 @@ from pathlib import Path
 
 
 def _framework_importable() -> bool:
-    """Check whether the expected ML framework package is installed."""
-    from importlib.metadata import distribution, PackageNotFoundError
-    if sys.platform == "darwin":
-        try:
-            distribution("mlx-sam3")
-            return True
-        except PackageNotFoundError:
-            return False
-    else:
-        try:
-            import importlib.util
-            return importlib.util.find_spec("sam2") is not None
-        except Exception:
-            return False
+    """Check whether the sam3 package is installed."""
+    try:
+        import sam3  # noqa: F401
+        return True
+    except ImportError:
+        return False
 
 
 def _weights_present(sam_models_dir: Path) -> dict[str, bool]:
@@ -47,8 +39,7 @@ def get_sam_status(sam_models_dir: Path) -> dict:
 
     {
         "framework_available": bool,
-        "platform": "darwin" | "other",
-        "backend": "mlx" | "torch",
+        "platform": str,
         "variants": {"tiny": true, "small": false, ...},
         "ready": bool   # True iff framework importable AND at least one variant ready
     }
@@ -60,7 +51,6 @@ def get_sam_status(sam_models_dir: Path) -> dict:
     return {
         "framework_available": framework_ok,
         "platform": sys.platform,
-        "backend": "mlx" if sys.platform == "darwin" else "torch",
         "variants": variants,
         "ready": framework_ok and any_weights,
     }
