@@ -1,4 +1,3 @@
-import json
 import os
 
 from flask import render_template, abort, request, redirect, url_for, jsonify
@@ -6,13 +5,14 @@ from PIL import Image
 
 from config import file_path as get_file_path
 from db import new_id
+from db_models import Project, File
 from queries import get_all_projects, get_project_by_id, get_project_files, get_file_by_id, create_project, insert_file
 
 
 def projects_page_route():
     return render_template(
         "projects.html",
-        projects=get_all_projects(),
+        projects=[Project(p) for p in get_all_projects()],
     )
 
 
@@ -65,36 +65,29 @@ def project_upload_route(project_id: str):
 
 
 def project_image_page_route(project_id: str, file_id: str):
-    project = get_project_by_id(project_id)
-    if not project:
+    raw_project = get_project_by_id(project_id)
+    if not raw_project:
         abort(404)
 
     files = get_project_files(project_id)
 
-    current_file = get_file_by_id(file_id)
-    if not current_file:
+    current_file_raw = get_file_by_id(file_id)
+    if not current_file_raw:
         abort(404)
 
     current_index = next(
         (i for i, f in enumerate(files) if f["id"] == file_id), 0
     )
 
-    try:
-        labels = json.loads(project["labels"]) or []
-    except (json.JSONDecodeError, TypeError):
-        labels = []
-
-    try:
-        annotations = json.loads(current_file["annotations"]) if current_file["annotations"] else None
-    except (json.JSONDecodeError, TypeError):
-        annotations = None
+    wrapped_project = Project(raw_project)
+    wrapped_file = File(current_file_raw) if current_file_raw else None
 
     return render_template(
         "project_image.html",
-        project=project,
+        project=wrapped_project,
         files=files,
-        current_file=current_file,
+        current_file=wrapped_file,
         current_index=current_index,
-        labels=labels,
-        annotations=annotations,
+        labels=wrapped_project.labels,
+        annotations=wrapped_file.annotations if wrapped_file else None,
     )

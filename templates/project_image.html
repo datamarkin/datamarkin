@@ -66,7 +66,7 @@
         <div class="app-sidebar-header">
             <p class="sidebar-heading">Labels</p>
             <div class="sidebar-label-list" id="label-list">
-                {% for label in labels %}
+                {% for label in project.labels %}
                     <button class="button is-small is-app is-fullwidth is-justify-content-left sidebar-label-btn {{ 'is-active' if loop.first }}"
                             data-label="{{ label.id }}">
                         <span class="label-checkbox-color" style="background:#{{ label.color }}"></span>
@@ -105,7 +105,7 @@
     <script>
         (function () {
             // Data from server
-            var labels = {{ labels | tojson }};
+            var labels = {{ project.labels | tojson }};
             var annotations = {{ annotations | tojson }};
             var imageWidth = {{ current_file.width | tojson }};
             var imageHeight = {{ current_file.height | tojson }};

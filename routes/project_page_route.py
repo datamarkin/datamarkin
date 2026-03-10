@@ -1,39 +1,6 @@
-import json
 from flask import render_template, abort, request
+from db_models import Project
 from queries import get_project_by_id, get_project_files_paginated
-
-
-class Project(dict):
-    """Wrapper for project dict that parses JSON fields on first access."""
-
-    def __init__(self, data: dict):
-        super().__init__(data)
-        self._parsed = {}
-
-    def _get_json(self, key: str):
-        if key not in self._parsed:
-            raw = self.get(key) or "{}"
-            try:
-                self._parsed[key] = json.loads(raw)
-            except (json.JSONDecodeError, TypeError):
-                self._parsed[key] = {}
-        return self._parsed[key]
-
-    @property
-    def labels(self):
-        return self._get_json("labels") or []
-
-    @property
-    def configuration(self):
-        return self._get_json("configuration") or {}
-
-    @property
-    def augmentation(self):
-        return self._get_json("augmentation") or {}
-
-    @property
-    def preprocessing(self):
-        return self._get_json("preprocessing") or {}
 
 
 def project_page_route(project_id: str):
