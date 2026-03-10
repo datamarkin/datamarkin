@@ -1,0 +1,3 @@
+-r base.txt
+# Apple Silicon SAM backend (requires Python 3.13+)
+mlx_sam3 @ git+https://github.com/Deekshith-Dade/mlx_sam3.git

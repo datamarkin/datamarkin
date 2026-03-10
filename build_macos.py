@@ -23,11 +23,19 @@ APP = ["main.py"]
 
 DATA_FILES = collect_files("templates") + collect_files("static")
 
+try:
+    import mlx
+    from pathlib import Path as _Path
+    _mlx_dir = str(_Path(mlx.__file__).parent)
+    DATA_FILES += collect_files(_mlx_dir)
+except ImportError:
+    _mlx_dir = None
+
 OPTIONS = {
     "argv_emulation": False,
     "strip": True,
     "includes": ["WebKit", "Foundation", "webview"],
-    "packages": ["flask", "jinja2", "sqlite3", "PIL"],
+    "packages": ["flask", "jinja2", "sqlite3", "PIL", "mlx", "mlx_sam"],
     # "iconfile": "static/icon.icns",
 }
 

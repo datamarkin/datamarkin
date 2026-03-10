@@ -2,7 +2,7 @@ import sqlite3
 import uuid
 from datetime import datetime, timezone
 
-from config import DATA_DIR, DB_PATH, FILES_DIR
+from config import DATA_DIR, DB_PATH, FILES_DIR, SAM_MODELS_DIR
 
 
 def get_db() -> sqlite3.Connection:
@@ -16,6 +16,7 @@ def init_db() -> None:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     (DATA_DIR / "projects").mkdir(exist_ok=True)
     FILES_DIR.mkdir(exist_ok=True)
+    SAM_MODELS_DIR.mkdir(parents=True, exist_ok=True)
 
     conn = get_db()
     conn.executescript("""
