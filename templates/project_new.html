@@ -32,6 +32,7 @@
 
                 <div class="field">
                     <label class="label">Labels</label>
+                    <p class="help is-size-7 has-text-grey">Define labels for your project. Each label will be used for annotation.</p>
                     <div id="labels-container"></div>
                     <button type="button" class="button is-small is-app mt-2" onclick="addLabel()">
                         Add label
@@ -53,6 +54,11 @@
     </section>
 
     <script>
+        // Initialize with one empty label row
+        document.addEventListener('DOMContentLoaded', function() {
+            addLabel();
+        });
+
         function addLabel(name, color) {
             const container = document.getElementById('labels-container');
             const row = document.createElement('div');
@@ -73,14 +79,35 @@
             container.appendChild(row);
         }
 
-        document.querySelector('form').addEventListener('submit', function() {
-            const labels = {};
-            document.querySelectorAll('#labels-container .field').forEach(row => {
-                const name = row.querySelector('.label-name').value.trim();
-                const color = row.querySelector('.label-color').value;
-                if (name) labels[name] = color;
+        document.querySelector('form').addEventListener('submit', function(e) {
+            e.preventDefault();
+
+            const labels = [];
+            let hasValidLabel = false;
+
+            document.querySelectorAll('#labels-container .field').forEach((row, index) => {
+                const nameInput = row.querySelector('.label-name');
+                const colorInput = row.querySelector('.label-color');
+                const name = nameInput.value.trim();
+                const color = colorInput.value.replace('#', ''); // Remove # for storage
+
+                if (name) {
+                    labels.push({
+                        id: index,
+                        name: name,
+                        color: color
+                    });
+                    hasValidLabel = true;
+                }
             });
+
+            if (!hasValidLabel) {
+                alert('Please add at least one valid label.');
+                return;
+            }
+
             document.getElementById('labels-json').value = JSON.stringify(labels);
+            e.target.submit();
         });
     </script>
 {% endblock %}
