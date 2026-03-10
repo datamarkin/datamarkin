@@ -53,3 +53,5 @@ def create_app() -> Flask:
     @app.route("/files/<file_id>")
     def serve_file(file_id):
         return files_route(file_id)
+
+    return app
