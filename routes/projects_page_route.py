@@ -12,7 +12,6 @@ from queries import get_all_projects, get_project_by_id, get_project_files, get_
 def projects_page_route(app_name):
     return render_template(
         "projects.html",
-        app_name="Datamarkin",
         active_tab="projects",
         projects=get_all_projects(),
     )

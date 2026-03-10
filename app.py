@@ -12,6 +12,15 @@ def create_app() -> Flask:
     app = Flask(__name__)
     app.config["MAX_CONTENT_LENGTH"] = 100 * 1024 * 1024  # 100 MB
 
+    # Set Jinja2 globals
+    app.jinja_env.globals.update({
+        "app": {
+            "name": app.config["APP_NAME"],
+            "version": app.config["APP_VERSION"],
+            "allowed_media_extensions": app.config["ALLOWED_EXTENSIONS"]
+        }
+    })
+
     init_db()
     app.register_blueprint(api)
     app.register_blueprint(sam3_api)
