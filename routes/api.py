@@ -8,6 +8,7 @@ from queries import (
     create_project,
     get_project_files_paginated,
     get_file_by_id,
+    update_file_annotations,
 )
 
 api = Blueprint("api", __name__, url_prefix="/api")
@@ -100,3 +101,18 @@ def get_file(file_id):
     if not file:
         return api_error("File not found", "not_found", 404)
     return api_response(file)
+
+
+@api.route("/files/<file_id>", methods=["PATCH"])
+def patch_file(file_id):
+    file = get_file_by_id(file_id)
+    if not file:
+        return api_error("File not found", "not_found", 404)
+
+    body = request.get_json(silent=True) or {}
+    if "annotations" not in body:
+        return api_error("'annotations' is required", "missing_fields", 400)
+
+    annotations_json = json.dumps(body["annotations"]) if body["annotations"] is not None else None
+    update_file_annotations(file_id, annotations_json)
+    return api_response({"saved": True})

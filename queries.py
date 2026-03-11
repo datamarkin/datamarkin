@@ -142,6 +142,16 @@ def insert_file(file_id, project_id, filename, extension, width, height, filesiz
     return file_id
 
 
+def update_file_annotations(file_id: str, annotations_json: str) -> None:
+    conn = get_db()
+    conn.execute(
+        "UPDATE files SET annotations = ?, updated_at = ? WHERE id = ?",
+        (annotations_json, now(), file_id),
+    )
+    conn.commit()
+    conn.close()
+
+
 def get_project_files(project_id: str) -> list[dict]:
     conn = get_db()
     rows = conn.execute(

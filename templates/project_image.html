@@ -42,6 +42,12 @@
                     </span>
                     <span>Auto Annotate</span>
                 </button>
+                <button id="sam-toggle-btn" class="button is-small is-app" {% if not embedding_id %}disabled title="SAM not ready"{% else %}title="Smart Segment (click image to segment)"{% endif %}>
+                    <span class="icon is-small">
+                        {% include 'icons/sparkles.svg' %}
+                    </span>
+                    <span>Smart Segment</span>
+                </button>
             </div>
         </div>
         <div class="titlebar-right" style="text-align: right;">
@@ -75,6 +81,19 @@
                 {% endfor %}
             </div>
         </div>
+        {% if embedding_id %}
+        <div class="app-sidebar-header" id="sam-text-panel">
+            <p class="sidebar-heading">Text Segment</p>
+            <div class="field has-addons">
+                <div class="control is-expanded">
+                    <input id="sam-text-input" class="input is-small" type="text" placeholder="e.g. person, car">
+                </div>
+                <div class="control">
+                    <button id="sam-text-btn" class="button is-small is-app">Go</button>
+                </div>
+            </div>
+        </div>
+        {% endif %}
         <div class="app-sidebar-body">
             <div class="thumb-grid">
                 {% for file in files %}
@@ -110,120 +129,19 @@
     </div>
 
     <script>
-        (function () {
-            // Data from server
-            var labels = {{ project.labels | tojson }};
-            var annotations = {{ annotations | tojson }};
-            var imageWidth = {{ current_file.width | tojson }};
-            var imageHeight = {{ current_file.height | tojson }};
-            var files = {{ files | tojson }};
-            var currentIndex = {{ current_index }};
-            var projectId = {{ project.id | tojson }};
-
-            // Build label lookup map: id -> {name, color, keypoints}
-            var labelMap = {};
-            labels.forEach(function (l) {
-                labelMap[l.id] = l;
-            });
-
-            // Coordinate converters (normalized 0-1 -> pixel)
-            function dbBboxToPixelBbox(b) {
-                return [b[0] * imageWidth, b[1] * imageHeight, (b[0] + b[2]) * imageWidth, (b[1] + b[3]) * imageHeight];
-            }
-
-            function dbSegmentationToPixel(seg) {
-                var out = [];
-                for (var i = 0; i < seg.length; i += 2) {
-                    out.push(seg[i] * imageWidth, seg[i + 1] * imageHeight);
-                }
-                return out;
-            }
-
-            function dbKeypointsToPixel(kps, labelObj) {
-                var kpDefs = (labelObj && labelObj.keypoints) || [];
-                return kps.map(function (kp) {
-                    var def = kpDefs.find(function (d) {
-                        return d.id === kp.id;
-                    });
-                    return {
-                        name: def ? def.name : 'kp-' + kp.id,
-                        point: [kp.point[0] * imageWidth, kp.point[1] * imageHeight]
-                    };
-                });
-            }
-
-            // Color helper: hex6 -> rgba fill
-            function hexToFill(hex) {
-                var r = parseInt(hex.substring(0, 2), 16);
-                var g = parseInt(hex.substring(2, 4), 16);
-                var b = parseInt(hex.substring(4, 6), 16);
-                return 'rgba(' + r + ',' + g + ',' + b + ',0.2)';
-            }
-
-            function initAnnotator() {
-                var annotator = MarkinJS.createImageAnnotator('annotate-image', {});
-                window._annotator = annotator;
-
-                if (annotations && annotations.objects) {
-                    annotations.objects.forEach(function (obj) {
-                        var label = labelMap[obj.class] || {};
-                        var color = label.color || 'ff0000';
-                        var opts = {
-                            class: label.name || '',
-                            stroke: '#' + color,
-                            fill: hexToFill(color)
-                        };
-
-                        if (obj.bbox) {
-                            opts.bbox = dbBboxToPixelBbox(obj.bbox);
-                        }
-                        if (obj.segmentation) {
-                            opts.segmentation = dbSegmentationToPixel(obj.segmentation);
-                        }
-                        if (obj.keypoints) {
-                            opts.keypoints = dbKeypointsToPixel(obj.keypoints, label);
-                        }
-
-                        annotator.createAnnotation(opts);
-                    });
-
-                    annotator.deselect();
-                }
-
-                annotator.clearHistory();
-            }
-
-            // Wait for image load before initializing
-            var img = document.getElementById('annotate-image');
-            if (img.complete) {
-                initAnnotator();
-            } else {
-                img.addEventListener('load', initAnnotator);
-            }
-
-            // Label click handler (event delegation)
-            document.getElementById('label-list').addEventListener('click', function (e) {
-                var btn = e.target.closest('.sidebar-label-btn');
-                if (!btn) return;
-                this.querySelectorAll('.sidebar-label-btn').forEach(function (b) {
-                    b.classList.remove('is-active');
-                });
-                btn.classList.add('is-active');
-            });
-
-            // Keyboard navigation — arrow keys navigate files unless an annotation is selected
-            document.addEventListener('keydown', function (e) {
-                if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
-                if (window._annotator && window._annotator.getSelectedElement()) return;
-
-                if (e.key === 'ArrowLeft' && currentIndex > 0) {
-                    window.location.href = '/project/' + projectId + '/' + files[currentIndex - 1].id;
-                } else if (e.key === 'ArrowRight' && currentIndex < files.length - 1) {
-                    window.location.href = '/project/' + projectId + '/' + files[currentIndex + 1].id;
-                }
-            });
-        })();
+        window.STUDIO_CONFIG = {
+            labels: {{ project.labels | tojson }},
+            annotations: {{ annotations | tojson }},
+            imageWidth: {{ current_file.width | tojson }},
+            imageHeight: {{ current_file.height | tojson }},
+            files: {{ files | tojson }},
+            currentIndex: {{ current_index }},
+            projectId: {{ project.id | tojson }},
+            fileId: {{ current_file.id | tojson }},
+            embeddingId: {{ embedding_id | tojson }}
+        };
     </script>
+    <script src="{{ url_for('static', filename='js/studio.js') }}"></script>
     <script defer>
         const zoomist = new Zoomist(".zoomist-container", {
             smooth: true,

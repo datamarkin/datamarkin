@@ -7,6 +7,14 @@ Both packages expose the same Python interface:
     from sam3.model.sam3_image_processor import Sam3Processor
 
 Import errors propagate to the factory in sam3_backend/__init__.py.
+
+mlx-sam3 API:
+    Sam3Processor.set_image(img) -> state dict with 'backbone_out'
+    Sam3Processor.add_geometric_prompt(box, label, state)
+        box: [cx, cy, w, h] normalized [0, 1]
+        label: True=positive, False=negative
+    Sam3Processor.set_text_prompt(prompt, state)
+    Sam3Processor.reset_all_prompts(state)
 """
 
 from pathlib import Path
@@ -37,24 +45,24 @@ class MLXBackend(SAMBackend):
     # ------------------------------------------------------------------
     def load(self, model_dir: Path) -> None:
         device = _detect_device()
-        # Official sam3 uses checkpoint_path (file); mlx-sam3 uses local_weights_dir (dir).
-        # Try checkpoint_path first; fall back on TypeError.
-        try:
-            checkpoint = _find_checkpoint(model_dir)
-            self._model = build_sam3_image_model(
-                checkpoint_path=str(checkpoint),
-                device=device,
-                load_from_HF=False,
-                enable_inst_interactivity=True,
-            )
-        except TypeError:
-            # mlx-sam3 does not accept checkpoint_path
-            self._model = build_sam3_image_model(
-                local_weights_dir=str(model_dir),
-                device=device,
-                load_from_HF=False,
-                enable_inst_interactivity=True,
-            )
+        # Try calling conventions from most specific to most generic.
+        # Official sam3 (CUDA/MPS) takes checkpoint_path + device;
+        # mlx-sam3 takes local_weights_dir and does NOT accept device/load_from_HF.
+        checkpoint = _find_checkpoint(model_dir)
+        attempts = [
+            dict(checkpoint_path=str(checkpoint), device=device, load_from_HF=False),
+            dict(local_weights_dir=str(model_dir)),
+            dict(checkpoint_path=str(checkpoint)),
+        ]
+        errors = []
+        for kwargs in attempts:
+            try:
+                self._model = build_sam3_image_model(**kwargs)
+                break
+            except TypeError as exc:
+                errors.append(str(exc))
+        else:
+            raise RuntimeError("Could not load SAM3 model:\n" + "\n".join(errors))
         self._processor = Sam3Processor(self._model)
         self._embeddings.clear()
 
@@ -65,8 +73,8 @@ class MLXBackend(SAMBackend):
         embedding_id = image_path.stem
         if embedding_id not in self._embeddings:
             img = Image.open(image_path).convert("RGB")
-            inference_state = self._processor.set_image(img)
-            self._embeddings[embedding_id] = inference_state
+            state = self._processor.set_image(img)
+            self._embeddings[embedding_id] = state
         return embedding_id
 
     # ------------------------------------------------------------------
@@ -82,47 +90,30 @@ class MLXBackend(SAMBackend):
         if embedding_id not in self._embeddings:
             raise KeyError(f"No cached embedding for '{embedding_id}'. Call encode_image() first.")
 
-        inference_state = self._embeddings[embedding_id]
+        state = self._embeddings[embedding_id]
+        self._processor.reset_all_prompts(state)
 
-        point_coords: list[list[float]] = []
-        point_labels: list[int] = []
-        box = None
-
+        result = None
         for p in prompts:
             if p["type"] == "point":
-                point_coords.append([p["x"] * width, p["y"] * height])
-                point_labels.append(p.get("polarity", 1))
+                # Convert point to normalized [cx, cy, w, h] box.
+                # 10% box gives one clean mask for typical object sizes.
+                cx, cy = float(p["x"]), float(p["y"])
+                box = [cx, cy, 0.1, 0.1]
+                label = p.get("polarity", 1) == 1
             elif p["type"] == "box":
-                box = np.array([
-                    p["x1"] * width, p["y1"] * height,
-                    p["x2"] * width, p["y2"] * height,
-                ])
+                # Convert [x1, y1, x2, y2] normalized to [cx, cy, w, h]
+                x1, y1 = float(p["x1"]), float(p["y1"])
+                x2, y2 = float(p["x2"]), float(p["y2"])
+                box = [(x1 + x2) / 2, (y1 + y2) / 2, x2 - x1, y2 - y1]
+                label = True
+            else:
+                continue
+            result = self._processor.add_geometric_prompt(box=box, label=label, state=state)
 
-        point_coords_arr = np.array(point_coords) if point_coords else None
-        point_labels_arr = np.array(point_labels) if point_labels else None
-        box_arr = box[None, :] if box is not None else None
-
-        masks, scores, _ = self._model.predict_inst(
-            inference_state,
-            point_coords=point_coords_arr,
-            point_labels=point_labels_arr,
-            box=box_arr,
-            mask_input=None,
-            multimask_output=False,
-        )
-
-        masks_np = _to_numpy(masks)
-        scores_np = _to_numpy(scores)
-        if masks_np.ndim == 4:
-            masks_np = masks_np[:, 0]  # (N, 1, H, W) → (N, H, W)
-
-        results = []
-        for mask, score in zip(masks_np, scores_np):
-            entry = _normalize_mask(mask, width, height)
-            if entry:
-                entry["score"] = float(score)
-                results.append(entry)
-        return results
+        if result is None:
+            return []
+        return _extract_masks(result, width, height)
 
     # ------------------------------------------------------------------
     def predict_text(
@@ -138,40 +129,21 @@ class MLXBackend(SAMBackend):
         if embedding_id not in self._embeddings:
             raise KeyError(f"No cached embedding for '{embedding_id}'. Call encode_image() first.")
 
-        inference_state = self._embeddings[embedding_id]
+        state = self._embeddings[embedding_id]
+        self._processor.reset_all_prompts(state)
 
-        # Temporarily override confidence threshold if the processor exposes it
         orig_threshold = None
         if hasattr(self._processor, "confidence_threshold"):
             orig_threshold = self._processor.confidence_threshold
             self._processor.confidence_threshold = confidence_threshold
 
         try:
-            self._processor.reset_all_prompts(inference_state)
-            result = self._processor.set_text_prompt(state=inference_state, prompt=text_prompt)
+            result = self._processor.set_text_prompt(prompt=text_prompt, state=state)
         finally:
             if orig_threshold is not None:
                 self._processor.confidence_threshold = orig_threshold
 
-        masks = result.get("masks", [])
-        scores = result.get("scores", [])
-
-        if len(masks) == 0:
-            return []
-
-        masks_np = _to_numpy(masks)
-        scores_flat = _to_numpy(scores).flatten().tolist() if len(scores) > 0 else []
-        if masks_np.ndim == 4:
-            masks_np = masks_np[:, 0]  # (N, 1, H, W) → (N, H, W)
-
-        results = []
-        for i, mask in enumerate(masks_np):
-            entry = _normalize_mask(mask, width, height)
-            if entry:
-                entry["score"] = float(scores_flat[i]) if i < len(scores_flat) else 0.0
-                entry["label"] = text_prompt
-                results.append(entry)
-        return results
+        return _extract_masks(result, width, height)
 
     # ------------------------------------------------------------------
     def unload(self) -> None:
@@ -183,6 +155,27 @@ class MLXBackend(SAMBackend):
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+def _extract_masks(result: dict, width: int, height: int) -> list[dict]:
+    """Convert a Sam3Processor result dict to a list of normalized mask dicts."""
+    masks_raw = result.get("masks", [])
+    scores_raw = result.get("scores", [])
+    if not hasattr(masks_raw, "__len__") or len(masks_raw) == 0:
+        return []
+
+    masks_np = _to_numpy(masks_raw)
+    scores_flat = _to_numpy(scores_raw).flatten().tolist() if len(scores_raw) > 0 else []
+    if masks_np.ndim == 4:
+        masks_np = masks_np[:, 0]  # (N, 1, H, W) → (N, H, W)
+
+    results = []
+    for i, mask in enumerate(masks_np):
+        entry = _normalize_mask(mask, width, height)
+        if entry:
+            entry["score"] = float(scores_flat[i]) if i < len(scores_flat) else 0.0
+            results.append(entry)
+    return results
+
 
 def _to_numpy(x) -> np.ndarray:
     """Convert PyTorch tensor, MLX array, or ndarray to numpy."""

@@ -1,4 +1,7 @@
+import logging
 import os
+import threading
+from pathlib import Path
 
 from flask import render_template, abort, request, redirect, url_for, jsonify
 from PIL import Image
@@ -7,6 +10,35 @@ from config import file_path as get_file_path, ALLOWED_EXTENSIONS
 from db import new_id
 from db_models import Project, File
 from queries import get_all_projects, get_project_by_id, get_project_files, get_file_by_id, create_project, insert_file
+
+logger = logging.getLogger(__name__)
+
+
+def _try_sam_encode(image_path: Path) -> str | None:
+    """Encode image with SAM. Returns embedding_id or None. Never raises."""
+    try:
+        from sam3_backend import get_sam_backend
+        from config import SAM_MODELS_DIR
+        from routes.sam3_api import _find_first_available_variant
+
+        backend = get_sam_backend()
+        if not backend.is_available():
+            return None
+
+        if getattr(backend, "_model", None) is None:
+            variant = _find_first_available_variant()
+            if variant is None:
+                return None
+            backend.load(SAM_MODELS_DIR / variant)
+
+        if not image_path.exists():
+            return None
+
+        return backend.encode_image(image_path)
+
+    except Exception as exc:
+        logger.warning("SAM encode failed for %s: %s", image_path, exc)
+        return None
 
 
 def projects_page_route():
@@ -80,6 +112,18 @@ def project_image_page_route(project_id: str, file_id: str):
     wrapped_project = Project(raw_project)
     wrapped_file = File(current_file_raw) if current_file_raw else None
 
+    # --- SAM pre-encoding ---
+    embedding_id = None
+    if wrapped_file:
+        current_image_path = get_file_path(wrapped_file.filename)
+        embedding_id = _try_sam_encode(current_image_path)
+
+        # Pre-fetch next image in daemon thread — never blocks render
+        if current_index + 1 < len(files):
+            next_path = get_file_path(files[current_index + 1]["filename"])
+            threading.Thread(target=_try_sam_encode, args=(next_path,), daemon=True).start()
+    # --- end SAM block ---
+
     return render_template(
         "project_image.html",
         project=wrapped_project,
@@ -88,4 +132,5 @@ def project_image_page_route(project_id: str, file_id: str):
         current_index=current_index,
         labels=wrapped_project.labels,
         annotations=wrapped_file.annotations if wrapped_file else None,
+        embedding_id=embedding_id,
     )
