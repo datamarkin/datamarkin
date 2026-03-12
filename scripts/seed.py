@@ -217,27 +217,29 @@ def generate_labels(project_type, count):
 
 
 def generate_bbox():
-    """Generate a random normalized bounding box [x, y, w, h]."""
+    """Generate a random normalized bounding box [x_min, y_min, x_max, y_max]."""
     w = random.uniform(0.05, 0.5)
     h = random.uniform(0.05, 0.5)
-    x = random.uniform(0, 1 - w)
-    y = random.uniform(0, 1 - h)
-    return [round(x, 4), round(y, 4), round(w, 4), round(h, 4)]
+    x_min = random.uniform(0, 1 - w)
+    y_min = random.uniform(0, 1 - h)
+    x_max = round(x_min + w, 4)
+    y_max = round(y_min + h, 4)
+    return [round(x_min, 4), round(y_min, 4), x_max, y_max]
 
 
 def generate_polygon(bbox):
     """Generate a convex polygon within a bounding box as flat [x1,y1,x2,y2,...]."""
-    bx, by, bw, bh = bbox
-    cx, cy = bx + bw / 2, by + bh / 2
+    x_min, y_min, x_max, y_max = bbox
+    cx, cy = (x_min + x_max) / 2, (y_min + y_max) / 2
     num_points = random.randint(6, 12)
 
     points = []
     for _ in range(num_points):
-        px = random.gauss(cx, bw / 4)
-        py = random.gauss(cy, bh / 4)
+        px = random.gauss(cx, (x_max - x_min) / 4)
+        py = random.gauss(cy, (y_max - y_min) / 4)
         # Clamp within bbox
-        px = max(bx, min(bx + bw, px))
-        py = max(by, min(by + bh, py))
+        px = max(x_min, min(x_max, px))
+        py = max(y_min, min(y_max, py))
         points.append((px, py))
 
     # Sort by angle from center to form convex shape
@@ -251,17 +253,17 @@ def generate_polygon(bbox):
 
 def generate_keypoints_for_bbox(bbox, keypoint_defs):
     """Generate keypoints distributed vertically through a bounding box."""
-    bx, by, bw, bh = bbox
+    x_min, y_min, x_max, y_max = bbox
     n = len(keypoint_defs)
     result = []
     for i, kp_def in enumerate(keypoint_defs):
         # Distribute vertically with slight randomness
         frac = (i + 0.5) / n
-        ky = by + bh * frac + random.gauss(0, bh * 0.05)
-        kx = bx + bw * random.uniform(0.2, 0.8)
+        ky = y_min + (y_max - y_min) * frac + random.gauss(0, (y_max - y_min) * 0.05)
+        kx = x_min + (x_max - x_min) * random.uniform(0.2, 0.8)
         # Clamp within bbox
-        kx = max(bx, min(bx + bw, kx))
-        ky = max(by, min(by + bh, ky))
+        kx = max(x_min, min(x_max, kx))
+        ky = max(y_min, min(y_max, ky))
         result.append({"id": kp_def["id"], "point": [round(kx, 4), round(ky, 4)]})
     return result
 
