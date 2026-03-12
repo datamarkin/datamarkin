@@ -17,11 +17,15 @@ class Project(dict):
         self.train = self.get("train")
         self.model_architecture = self.get("model_architecture")
         self.description = self.get("description")
-        # JSON columns
+        # JSON columns — parse and keep dict in sync
         self.labels = json.loads(self["labels"]) if self.get("labels") else []
+        self["labels"] = self.labels
         self.configuration = json.loads(self["configuration"]) if self.get("configuration") else {}
+        self["configuration"] = self.configuration
         self.augmentation = json.loads(self["augmentation"]) if self.get("augmentation") else {}
+        self["augmentation"] = self.augmentation
         self.preprocessing = json.loads(self["preprocessing"]) if self.get("preprocessing") else {}
+        self["preprocessing"] = self.preprocessing
 
 
 class File(dict):
@@ -42,5 +46,6 @@ class File(dict):
         self.sort_order = self.get("sort_order")
         self.created_at = self.get("created_at")
         self.updated_at = self.get("updated_at")
-        # JSON column
+        # JSON column — parse and keep dict in sync
         self.annotations = json.loads(self["annotations"]) if self.get("annotations") else None
+        self["annotations"] = self.annotations
