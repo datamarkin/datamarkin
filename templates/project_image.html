@@ -14,7 +14,7 @@
         </div>
         <div class="titlebar-center">
             <div class="buttons has-addons is-centered m-0 pr-3">
-                <button class="button is-small is-app">
+                <button id="samToggle" class="button is-small is-app">
                     <span class="icon is-small">
                         {% include 'icons/eye-slash.svg' %}
                     </span>
@@ -22,13 +22,13 @@
                 </button>
             </div>
             <div class="buttons has-addons is-centered m-0">
-                <button disabled="" class="button is-small is-light">
+                <button id="validate-annotations" disabled="" class="button is-small is-light">
                     <span class="icon is-small">
                         {% include 'icons/check.svg' %}
                     </span>
                     <span>Validate</span>
                 </button>
-                <button class="button is-small is-light">
+                <button id="reset-annotations" class="button is-small is-light">
                     <span class="icon is-small">
                         {% include 'icons/x-mark.svg' %}
                     </span>
@@ -36,7 +36,7 @@
                 </button>
             </div>
             <div class="buttons has-addons is-centered m-0 pl-3">
-                <button class="button is-small is-app">
+                <button id="auto-label" class="button is-small is-app">
                     <span class="icon is-small">
                         {% include 'icons/sparkles.svg' %}
                     </span>
@@ -145,7 +145,11 @@
              style="aspect-ratio: {{ current_file.width / current_file.height }};">
             <div class="zoomist-wrapper">
                 <div class="zoomist-image">
-                    <img id="annotate-image" src="{{ url_for('serve_file', file_id=current_file.id, key='original') }}"
+                    <img id="image-to-annotate"
+                         data-height="{{ current_file.height }}"
+                         data-width="{{ current_file.width }}" data-image-id="{{ current_file.id }}"
+                         data-ratio="{{ current_file.width / current_file.height }}"
+                         src="{{ url_for('serve_file', file_id=current_file.id, key='original') }}"
                          alt="{{ current_file.filename }}">
                     <svg id="annotations"
                          style=" position: absolute; top: 50%; height: 100%; width: auto; left: 50%; transform: translate(-50%, -50%); "
@@ -225,6 +229,8 @@
             console.error('MarkinJS failed to initialize - SVG element not found');
         }
     </script>
+
+    <script src="{{ url_for('static', filename='js/studio.js') }}" defer></script>
 
     <script defer>
         const zoomist = new Zoomist(".zoomist-container", {
