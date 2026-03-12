@@ -1,4 +1,4 @@
-"""SAM API Blueprint - Minimal point-based implementation."""
+"""SAM API Blueprint - Minimal implementation with point and text prompts."""
 
 from pathlib import Path
 
@@ -97,6 +97,87 @@ def sam_predict_points():
 
         # Run prediction
         masks = backend.predict(embedding_id, norm_points, bool_labels, width, height)
+    except KeyError:
+        return _err("Failed to encode image", "encode_error", 500)
+    except Exception as exc:
+        return _err(f"Prediction failed: {exc}", "predict_failed", 500)
+
+    return _ok({"masks": masks})
+
+
+@sam3_api.route("/predict_text", methods=["POST"])
+def sam_predict_text():
+    """
+    Text-based segmentation.
+
+    Request:
+      {
+        "file_id": "...",
+        "text_prompt": "car",
+        "confidence_threshold": 0.5
+      }
+
+    Response:
+      {"data": {"masks": [{"segmentation": [...], "bbox": [...], "score": ...}, ...]}}
+    """
+    from PIL import Image as PILImage
+
+    body = request.get_json(silent=True) or {}
+    file_id = body.get("file_id")
+    text_prompt = body.get("text_prompt", "").strip()
+    confidence_threshold = body.get("confidence_threshold", 0.5)
+
+    if not file_id:
+        return _err("'file_id' is required", "missing_fields", 400)
+    if not text_prompt:
+        return _err("'text_prompt' is required", "missing_fields", 400)
+
+    # Look up file
+    file_row = get_file_by_id(file_id)
+    if not file_row:
+        return _err("File not found", "not_found", 404)
+
+    image_path = get_file_path(file_row["filename"])
+    if not image_path.exists():
+        return _err("Image file not found on disk", "file_missing", 404)
+
+    # Load image to get dimensions
+    try:
+        with PILImage.open(image_path) as img:
+            width, height = img.size
+    except Exception as exc:
+        return _err(f"Failed to read image: {exc}", "image_error", 500)
+
+    # Get backend and encode image (or use cache)
+    try:
+        from sam3_backend import get_sam_backend
+
+        backend = get_sam_backend()
+
+        if not backend.is_available():
+            return _err("SAM backend not available", "backend_unavailable", 503)
+
+        # Load model if needed
+        model_loaded = getattr(backend, "_model", None) is not None
+        if not model_loaded:
+            target_variant = _find_first_available_variant()
+            if not target_variant:
+                return (
+                    _err("No SAM weights found. Download weights first.", "no_weights", 400)
+                )
+            backend.load(SAM_MODELS_DIR / target_variant)
+
+        # Encode image (uses cache internally)
+        embedding_id = backend.encode_image(image_path)
+
+    except RuntimeError as exc:
+        return _err(str(exc), "backend_error", 503)
+
+    try:
+        # Run prediction with text prompt
+        masks = backend.predict_text(
+            embedding_id, text_prompt, width, height, float(confidence_threshold)
+        )
     except KeyError:
         return _err("Failed to encode image", "encode_error", 500)
     except Exception as exc:

@@ -1,4 +1,4 @@
-"""SAM3 MLX Backend - Minimal point-based implementation."""
+"""SAM3 MLX Backend - Minimal implementation with point and text prompts."""
 
 from pathlib import Path
 
@@ -63,8 +63,37 @@ class MLXBackend(SAMBackend):
         state, _, _ = self._cache[embedding_id]
         self._processor.reset_all_prompts(state)
 
+        # Use native multi-point API
         state = self._processor.add_points_prompt(
             points=points, labels=labels, state=state
+        )
+
+        masks_raw = state.get("masks", [])
+        boxes_raw = state.get("boxes", [])
+        scores_raw = state.get("scores", [])
+
+        return _extract_masks(masks_raw, boxes_raw, scores_raw, width, height)
+
+    def predict_text(
+        self,
+        embedding_id: str,
+        text_prompt: str,
+        width: int,
+        height: int,
+        confidence_threshold: float = 0.5,
+    ) -> list[dict]:
+        if self._processor is None:
+            raise RuntimeError("Model not loaded. Call load() first.")
+
+        if embedding_id not in self._cache:
+            raise KeyError(f"No cached embedding for '{embedding_id}'")
+
+        state, _, _ = self._cache[embedding_id]
+        self._processor.reset_all_prompts(state)
+
+        # Use native text prompt API
+        state = self._processor.set_text_prompt(
+            state=state, prompt=text_prompt
         )
 
         masks_raw = state.get("masks", [])
