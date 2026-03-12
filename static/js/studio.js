@@ -325,10 +325,28 @@ function validateAnnotation() {
     const labelId = selectedLabel ? selectedLabel.dataset.labelId : '0';
     const labelColor = selectedLabel ? selectedLabel.dataset.labelColor : '466565';
 
+    // Denormalize SAM3 response from [0,1] to pixel coordinates
+    const maskPolygon = annotation.annotationCanditate.mask_polygon;
+    const denormPolygon = [];
+    for (let i = 0; i < maskPolygon.length; i += 2) {
+        denormPolygon.push(
+            maskPolygon[i] * imageWidth,      // x
+            maskPolygon[i + 1] * imageHeight  // y
+        );
+    }
+
+    const bbox = annotation.annotationCanditate.bbox;
+    const denormBbox = [
+        bbox[0] * imageWidth,  // x_min -> pixel
+        bbox[1] * imageHeight, // y_min -> pixel
+        bbox[2] * imageWidth,  // x_max -> pixel
+        bbox[3] * imageHeight  // y_max -> pixel
+    ];
+
     const annotationOptions = {
-        bbox: annotation.annotationCanditate.bbox,
+        bbox: denormBbox,
         class: labelId,
-        segmentation: annotation.annotationCanditate.mask_polygon,
+        segmentation: denormPolygon,
         id: null,
         fill: '#' + labelColor,
         stroke: '#' + labelColor,
@@ -460,6 +478,8 @@ svgElement.addEventListener('mousemove', async function (e) {
     if (!annotation.firstInitialised && app.samEnabled) {
         annotation.accumulatedPoints = [[app.mouseX, app.mouseY]]
         annotation.annotationCanditate = await debouncedMaskRequest();
+        console.log('annotation.annotationCanditate')
+        console.log(annotation.annotationCanditate)
         await drawCandidateAnnotations(annotation.annotationCanditate);
     }
 });
@@ -502,6 +522,26 @@ async function drawCandidateAnnotations(candidate_annotation) {
     const candidate_polygon = candidate_annotation.mask_polygon;
     const candidate_bbox = candidate_annotation.bbox;
 
+    console.log('candidate_polygon')
+    console.log(candidate_polygon)
+
+    // Denormalize SAM3 response from [0,1] to pixel coordinates
+    // candidate_polygon is a flat array: [x1, y1, x2, y2, ...]
+    const denormPolygon = [];
+    for (let i = 0; i < candidate_polygon.length; i += 2) {
+        denormPolygon.push(
+            candidate_polygon[i] * imageWidth,      // x
+            candidate_polygon[i + 1] * imageHeight  // y
+        );
+    }
+
+    const denormBbox = [
+        candidate_bbox[0] * imageWidth,  // x_min -> pixel
+        candidate_bbox[1] * imageHeight, // y_min -> pixel
+        candidate_bbox[2] * imageWidth,  // x_max -> pixel
+        candidate_bbox[3] * imageHeight  // y_max -> pixel
+    ];
+
     // Get the selected label ID and color
     const selectedLabel = document.querySelector('.is-label-button.is-active');
     const labelId = selectedLabel ? selectedLabel.dataset.labelId : '0';
@@ -512,18 +552,25 @@ async function drawCandidateAnnotations(candidate_annotation) {
 
     // Prepare annotation options with color information
     const annotationOptions = {
-        bbox: candidate_bbox,
+        bbox: denormBbox,
         class: labelId,
-        segmentation: candidate_polygon,
+        segmentation: denormPolygon,
         id: 'candidate-annotation',
         fill: '#' + labelColor,
         stroke: '#' + labelColor,
         uuid: 'candidate-annotation'
     };
 
+    console.log('annotationOptions')
+    console.log(annotationOptions)
+    console.log('existingAnnotation')
+    console.log(existingAnnotation)
+
     if (existingAnnotation) {
         markin.updateAnnotation(annotationOptions);
     } else {
+        console.log('annotationOptions')
+        console.log(annotationOptions)
         markin.createAnnotation(annotationOptions);
     }
 
@@ -678,25 +725,21 @@ function debouncedMaskRequest() {
         window.maskTimeout = setTimeout(async () => {
             const maskResult = await requestMask();
             resolve(maskResult);
-        }, 10);
+        }, 100);
     });
 }
 
 async function requestMask() {
     try {
-        const response = await fetch('https://smart-segment.datamarkin.com/sam_decoder', {
+        const response = await fetch('/api/sam/predict_points', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify({
-                'input_points': annotation.accumulatedPoints,
-                'input_box': [0, 0, 0, 0],
-                'file_id': imageId,
-                'image_size': imageShape,
-                'input_labels': annotation.accumulatedLabels,
-                'has_low_mask': annotation.hasLowMask,
-                'cropped_bbox': annotation.croppedBbox
+                'points': annotation.accumulatedPoints,
+                'labels': annotation.accumulatedLabels.map(l => l === 1),
+                'file_id': imageId
             })
         });
 
@@ -704,8 +747,20 @@ async function requestMask() {
             throw new Error(`HTTP error! Status: ${response.status}`);
         }
 
-        const data = await response.json();
-        return data;
+        const result = await response.json();
+        // SAM3 API returns { segmentation, bbox, score }, but UI expects mask_polygon
+        const maskData = result.data.masks[0];
+        console.log('result.data.masks[0')
+        console.log({
+            mask_polygon: maskData.segmentation,
+            bbox: maskData.bbox,
+            uuid: null
+        })
+        return {
+            mask_polygon: maskData.segmentation,
+            bbox: maskData.bbox,
+            uuid: null
+        };
     } catch (error) {
         console.error('There was a problem sending the coordinates:', error);
         return null;
@@ -788,10 +843,28 @@ async function handleAutoLabel() {
 
             // Create annotation for each detection
             for (let i = 0; i < result.mask_polygon.length; i++) {
+                // Denormalize SAM3 response from [0,1] to pixel coordinates
+                const maskPolygon = result.mask_polygon[i];
+                const denormPolygon = [];
+                for (let j = 0; j < maskPolygon.length; j += 2) {
+                    denormPolygon.push(
+                        maskPolygon[j] * imageWidth,      // x
+                        maskPolygon[j + 1] * imageHeight  // y
+                    );
+                }
+
+                const bbox = result.boxes[i];
+                const denormBbox = [
+                    bbox[0] * imageWidth,  // x_min -> pixel
+                    bbox[1] * imageHeight, // y_min -> pixel
+                    bbox[2] * imageWidth,  // x_max -> pixel
+                    bbox[3] * imageHeight  // y_max -> pixel
+                ];
+
                 const annotationOptions = {
-                    bbox: result.boxes[i],
+                    bbox: denormBbox,
                     class: labelId,
-                    segmentation: result.mask_polygon[i],
+                    segmentation: denormPolygon,
                     fill: '#' + labelColor,
                     stroke: '#' + labelColor,
                     uuid: null  // Let viva generate UUID
