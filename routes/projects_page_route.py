@@ -118,7 +118,4 @@ def project_image_page_route(project_id: str, file_id: str):
         files=files,
         current_file=wrapped_file,
         current_index=current_index,
-        labels=wrapped_project.labels,
-        annotations=wrapped_file.annotations if wrapped_file else None,
-        # embedding_id=embedding_id,
     )
