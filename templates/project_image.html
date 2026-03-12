@@ -128,20 +128,6 @@
         </div>
     </div>
 
-    <script>
-        window.STUDIO_CONFIG = {
-            labels: {{ project.labels | tojson }},
-            annotations: {{ annotations | tojson }},
-            imageWidth: {{ current_file.width | tojson }},
-            imageHeight: {{ current_file.height | tojson }},
-            files: {{ files | tojson }},
-            currentIndex: {{ current_index }},
-            projectId: {{ project.id | tojson }},
-            fileId: {{ current_file.id | tojson }},
-            embeddingId: {{ embedding_id | tojson }}
-        };
-    </script>
-    <script src="{{ url_for('static', filename='js/studio.js') }}"></script>
     <script defer>
         const zoomist = new Zoomist(".zoomist-container", {
             smooth: true,

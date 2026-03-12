@@ -112,18 +112,6 @@ def project_image_page_route(project_id: str, file_id: str):
     wrapped_project = Project(raw_project)
     wrapped_file = File(current_file_raw) if current_file_raw else None
 
-    # --- SAM pre-encoding ---
-    embedding_id = None
-    if wrapped_file:
-        current_image_path = get_file_path(wrapped_file.filename)
-        embedding_id = _try_sam_encode(current_image_path)
-
-        # Pre-fetch next image in daemon thread — never blocks render
-        if current_index + 1 < len(files):
-            next_path = get_file_path(files[current_index + 1]["filename"])
-            threading.Thread(target=_try_sam_encode, args=(next_path,), daemon=True).start()
-    # --- end SAM block ---
-
     return render_template(
         "project_image.html",
         project=wrapped_project,
@@ -132,5 +120,5 @@ def project_image_page_route(project_id: str, file_id: str):
         current_index=current_index,
         labels=wrapped_project.labels,
         annotations=wrapped_file.annotations if wrapped_file else None,
-        embedding_id=embedding_id,
+        # embedding_id=embedding_id,
     )

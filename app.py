@@ -3,7 +3,7 @@ from db import init_db
 from routes.projects_page_route import projects_page_route, project_new_page_route, project_upload_route, \
     project_image_page_route
 from routes.project_page_route import project_page_route
-from routes.settings_page_route import settings_page_route
+# from routes.settings_page_route import settings_page_route
 from routes.files_route import files_route
 from routes.api import api
 from routes.sam3_api import sam3_api
@@ -70,9 +70,9 @@ def create_app() -> Flask:
     def project_image(project_id, file_id):
         return project_image_page_route(project_id, file_id)
 
-    @app.route("/settings")
-    def settings():
-        return settings_page_route()
+    # @app.route("/settings")
+    # def settings():
+    #     return settings_page_route()
 
     @app.route("/model-zoo")
     def model_zoo():
