@@ -206,6 +206,27 @@
     </div>
 
     <script defer>
+        window.markin = new MarkinJS.createAnnotator('annotations', {
+            zoom: 1.0,
+            requireBbox: false,
+            bboxContainPolygon: true,
+            bboxContainKeypoints: true,
+            keyboardControls: true,
+            deletionRules: {
+                "bbox": ["keypoint", "polygon"],
+                "keypoint": [],
+                "polygon": ["bbox"]
+            }
+        });
+        if (markin) {
+            markin.disable();
+            console.log('MarkinJS initialized successfully');
+        } else {
+            console.error('MarkinJS failed to initialize - SVG element not found');
+        }
+    </script>
+
+    <script defer>
         const zoomist = new Zoomist(".zoomist-container", {
             smooth: true,
             bounds: true,
