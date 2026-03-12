@@ -142,7 +142,7 @@
 
     <div id="annotations-container" class="is-align-content-center p-0 m-0">
         <div id="zoomist-container" class="zoomist-container"
-             style="aspect-ratio: 1.328282828;">
+             style="aspect-ratio: {{ current_file.width / current_file.height }};">
             <div class="zoomist-wrapper">
                 <div class="zoomist-image">
                     <img id="annotate-image" src="{{ url_for('serve_file', file_id=current_file.id, key='original') }}"
