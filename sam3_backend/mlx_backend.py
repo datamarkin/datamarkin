@@ -171,6 +171,6 @@ def _normalize_mask(mask: np.ndarray, width: int, height: int) -> dict | None:
     norm_seg = [v / width if i % 2 == 0 else v / height for i, v in enumerate(polygon)]
     xs = norm_seg[0::2]
     ys = norm_seg[1::2]
-    bbox = [min(xs), min(ys), max(xs) - min(xs), max(ys) - min(ys)]
+    bbox = [min(xs), min(ys), max(xs), max(ys)]
 
     return {"segmentation": norm_seg, "bbox": bbox}
