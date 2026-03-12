@@ -76,17 +76,17 @@
             </div>
         </div>
         {% if embedding_id %}
-        <div class="app-sidebar-header" id="sam-text-panel">
-            <p class="sidebar-heading">Text Segment</p>
-            <div class="field has-addons">
-                <div class="control is-expanded">
-                    <input id="sam-text-input" class="input is-small" type="text" placeholder="e.g. person, car">
-                </div>
-                <div class="control">
-                    <button id="sam-text-btn" class="button is-small is-app">Go</button>
+            <div class="app-sidebar-header" id="sam-text-panel">
+                <p class="sidebar-heading">Text Segment</p>
+                <div class="field has-addons">
+                    <div class="control is-expanded">
+                        <input id="sam-text-input" class="input is-small" type="text" placeholder="e.g. person, car">
+                    </div>
+                    <div class="control">
+                        <button id="sam-text-btn" class="button is-small is-app">Go</button>
+                    </div>
                 </div>
             </div>
-        </div>
         {% endif %}
         <div class="app-sidebar-body">
             <div class="thumb-grid">
@@ -110,6 +110,36 @@
 {% endblock %}
 
 {% block content %}
+    {% if project.type == 'image-classification' %}
+        {% set bbox_fill_opacity = 0.4 %}
+        {% set polygon_fill_opacity = 0.4 %}
+        {% set keypoint_fill_opacity = 0.4 %}
+        {% set bbox_stroke_opacity = 1 %}
+        {% set polygon_stroke_opacity = 1 %}
+        {% set keypoint_stroke_opacity = 1 %}
+    {% elif project.type == 'object_detection' %}
+        {% set bbox_fill_opacity = 0.1 %}
+        {% set polygon_fill_opacity = 0.1 %}
+        {% set keypoint_fill_opacity = 0 %}
+        {% set bbox_stroke_opacity = 0.8 %}
+        {% set polygon_stroke_opacity = 0.5 %}
+        {% set keypoint_stroke_opacity = 0 %}
+    {% elif project.type == 'segmentation' %}
+        {% set bbox_fill_opacity = 0.1 %}
+        {% set polygon_fill_opacity = 0.4 %}
+        {% set keypoint_fill_opacity = 1 %}
+        {% set bbox_stroke_opacity = 0.2 %}
+        {% set polygon_stroke_opacity = 1 %}
+        {% set keypoint_stroke_opacity = 1 %}
+    {% elif project.type == 'keypoint-detection' %}
+        {% set bbox_fill_opacity = 0.1 %}
+        {% set polygon_fill_opacity = 0.25 %}
+        {% set keypoint_fill_opacity = 1 %}
+        {% set bbox_stroke_opacity = 0.8 %}
+        {% set polygon_stroke_opacity = 0 %}
+        {% set keypoint_stroke_opacity = 1 %}
+    {% endif %}
+
     <div id="annotations-container" class="is-align-content-center p-0 m-0">
         <div id="zoomist-container" class="zoomist-container"
              style="aspect-ratio: 1.328282828;">
@@ -117,6 +147,59 @@
                 <div class="zoomist-image">
                     <img id="annotate-image" src="{{ url_for('serve_file', file_id=current_file.id, key='original') }}"
                          alt="{{ current_file.filename }}">
+                    <svg id="annotations"
+                         style=" position: absolute; top: 50%; height: 100%; width: auto; left: 50%; transform: translate(-50%, -50%); "
+                         viewBox="0 0 {{ current_file.width }} {{ current_file.height }}">
+                        <line id="guide-line-vertical" stroke="rgba(255, 255, 255, 0.5)" stroke-width="1"
+                              stroke-dasharray="3,3" vector-effect="non-scaling-stroke" x1="0" y1="0" x2="0"
+                              y2="0"></line>
+                        <line id="guide-line-horizontal" stroke="rgba(255, 255, 255, 0.5)" stroke-width="1"
+                              stroke-dasharray="3,3" vector-effect="non-scaling-stroke" x1="0" y1="0" x2="0"
+                              y2="0"></line>
+
+                        {% set deletion_rules = { "bbox": ["keypoint", "polygon"], "keypoint": [], "polygon": ["bbox"] } %}
+                        {% for obj in current_file.annotations.objects %}
+                            <g data-uuid="{{ obj.uuid if obj.uuid else '' }}" data-annotation-group="true"
+                               data-class="{{ obj.class }}" class="validated-annotation"
+                               data-deletion-rules="{{ deletion_rules|tojson|safe }}">
+                                {% if obj.bbox %}
+                                    {% set x = obj.bbox[0] * current_file.width %}
+                                    {% set y = obj.bbox[1] * current_file.height %}
+                                    {% set width = (obj.bbox[2] - obj.bbox[0]) * current_file.width %}
+                                    {% set height = (obj.bbox[3] - obj.bbox[1]) * current_file.height %}
+                                    <rect data-role="bbox" x="{{ x }}" y="{{ y }}" width="{{ width }}"
+                                          height="{{ height }}"
+                                          fill="#{% for label in project.labels %}{% if label.id == obj.class %}{{ label.color }}{% endif %}{% endfor %}"
+                                          fill-opacity="{{ bbox_fill_opacity }}"
+                                          stroke="#{% for label in project.labels %}{% if label.id == obj.class %}{{ label.color }}{% endif %}{% endfor %}"
+                                          stroke-width="3" vector-effect="non-scaling-stroke"
+                                          stroke-opacity="{{ bbox_stroke_opacity }}"
+                                          id="bbox-{{ obj.uuid if obj.uuid else '' }}"
+                                          data-uuid="bbox-{{ obj.uuid if obj.uuid else '' }}">
+                                    </rect>
+                                {% endif %}
+
+
+                                {% if obj.segmentation %}
+                                    {% set segmentation = obj.segmentation %}
+                                    {% set points = [] %}
+                                    {% for i in range(0, segmentation|length, 2) %}
+                                        {% set x = (segmentation[i] * current_file.width)|round|int %}
+                                        {% set y = (segmentation[i+1] * current_file.height)|round|int %}
+                                        {% set _dummy = points.append(x|string + "," + y|string) %}
+                                    {% endfor %}
+                                    <polygon data-role="annotation" points="{{ points|join(" ") }}"
+                                             fill="#{% for label in project.labels %}{% if label.id == obj.class %}{{ label.color }}{% endif %}{% endfor %}"
+                                             fill-opacity="{{ polygon_fill_opacity }}" stroke-width="3"
+                                             stroke="#{% for label in project.labels %}{% if label.id == obj.class %}{{ label.color }}{% endif %}{% endfor %}"
+                                             stroke-opacity="{{ polygon_stroke_opacity }}"
+                                             vector-effect="non-scaling-stroke"
+                                             data-uuid="polygon-{{ obj.uuid if obj.uuid else '' }}">
+                                    </polygon>
+                                {% endif %}
+                            </g>
+                        {% endfor %}
+                    </svg>
                 </div>
             </div>
         </div>
