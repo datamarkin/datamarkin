@@ -78,6 +78,10 @@ def create_app() -> Flask:
     def model_zoo():
         return render_template("model_zoo.html")
 
+    @app.route("/agents")
+    def agents():
+        return render_template("agents.html")
+
     @app.route("/workflows")
     def workflows():
         return render_template("workflows.html")
