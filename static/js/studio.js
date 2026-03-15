@@ -422,7 +422,6 @@ async function updateAPIAnnotations(exported_annotations) {
             type: 'update_annotations'
         })
     });
-    console.log(response);
 }
 
 function SVGCircleElement(x, y, r = 10, fill = 'red') {
@@ -478,8 +477,6 @@ svgElement.addEventListener('mousemove', async function (e) {
     if (!annotation.firstInitialised && app.samEnabled) {
         annotation.accumulatedPoints = [[app.mouseX, app.mouseY]]
         annotation.annotationCanditate = await debouncedMaskRequest();
-        console.log('annotation.annotationCanditate')
-        console.log(annotation.annotationCanditate)
         await drawCandidateAnnotations(annotation.annotationCanditate);
     }
 });
@@ -522,9 +519,6 @@ async function drawCandidateAnnotations(candidate_annotation) {
     const candidate_polygon = candidate_annotation.mask_polygon;
     const candidate_bbox = candidate_annotation.bbox;
 
-    console.log('candidate_polygon')
-    console.log(candidate_polygon)
-
     // Denormalize SAM3 response from [0,1] to pixel coordinates
     // candidate_polygon is a flat array: [x1, y1, x2, y2, ...]
     const denormPolygon = [];
@@ -560,17 +554,9 @@ async function drawCandidateAnnotations(candidate_annotation) {
         stroke: '#' + labelColor,
         uuid: 'candidate-annotation'
     };
-
-    console.log('annotationOptions')
-    console.log(annotationOptions)
-    console.log('existingAnnotation')
-    console.log(existingAnnotation)
-
     if (existingAnnotation) {
         markin.updateAnnotation(annotationOptions);
     } else {
-        console.log('annotationOptions')
-        console.log(annotationOptions)
         markin.createAnnotation(annotationOptions);
     }
 
@@ -708,7 +694,7 @@ function debouncedEmbeddingRequest() {
         window.embeddingTimeout = setTimeout(async () => {
             const embeddingResult = await requestNewEmbedding(imageId, annotation.croppedBbox, imageShape);
             resolve(embeddingResult); // Resolve with the new bbox
-        }, 100);
+        }, 500);
     });
 }
 
@@ -729,13 +715,20 @@ function debouncedMaskRequest() {
     });
 }
 
+let _maskAbortController = null;
+
 async function requestMask() {
+    // Cancel any in-flight request to prevent pileup during rapid mouse movement
+    if (_maskAbortController) _maskAbortController.abort();
+    _maskAbortController = new AbortController();
+
     try {
         const response = await fetch('/api/sam/predict_points', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
             },
+            signal: _maskAbortController.signal,
             body: JSON.stringify({
                 'points': annotation.accumulatedPoints,
                 'labels': annotation.accumulatedLabels.map(l => l === 1),
@@ -750,18 +743,13 @@ async function requestMask() {
         const result = await response.json();
         // SAM3 API returns { segmentation, bbox, score }, but UI expects mask_polygon
         const maskData = result.data.masks[0];
-        console.log('result.data.masks[0')
-        console.log({
-            mask_polygon: maskData.segmentation,
-            bbox: maskData.bbox,
-            uuid: null
-        })
         return {
             mask_polygon: maskData.segmentation,
             bbox: maskData.bbox,
             uuid: null
         };
     } catch (error) {
+        if (error.name === 'AbortError') return null;
         console.error('There was a problem sending the coordinates:', error);
         return null;
     }
@@ -769,14 +757,13 @@ async function requestMask() {
 
 async function requestNewEmbedding() {
     try {
-        const response = await fetch('/request_embedding/' + imageId, {
+        const response = await fetch('/api/sam/create_embedding', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify({
-                'bbox': annotation.croppedBbox,
-                'image_size': imageShape
+                'file_id': imageId
             })
         });
 
@@ -793,7 +780,7 @@ async function requestNewEmbedding() {
 
 async function requestTextMask(textPrompt) {
     try {
-        const response = await fetch('https://smart-segment.datamarkin.com/sam_text', {
+        const response = await fetch('/api/sam/predict_text', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -836,15 +823,16 @@ async function handleAutoLabel() {
             // Request masks for this label
             const result = await requestTextMask(labelName);
 
-            if (!result || !result.mask_polygon || result.mask_polygon.length === 0) {
+            if (!result || !result.data || !result.data.masks || result.data.masks.length === 0) {
                 console.log(`No detections for label: ${labelName}`);
                 continue;
             }
 
             // Create annotation for each detection
-            for (let i = 0; i < result.mask_polygon.length; i++) {
+            for (let i = 0; i < result.data.masks.length; i++) {
+                const mask = result.data.masks[i];
                 // Denormalize SAM3 response from [0,1] to pixel coordinates
-                const maskPolygon = result.mask_polygon[i];
+                const maskPolygon = mask.segmentation;
                 const denormPolygon = [];
                 for (let j = 0; j < maskPolygon.length; j += 2) {
                     denormPolygon.push(
@@ -853,7 +841,7 @@ async function handleAutoLabel() {
                     );
                 }
 
-                const bbox = result.boxes[i];
+                const bbox = mask.bbox;
                 const denormBbox = [
                     bbox[0] * imageWidth,  // x_min -> pixel
                     bbox[1] * imageHeight, // y_min -> pixel
@@ -867,13 +855,13 @@ async function handleAutoLabel() {
                     segmentation: denormPolygon,
                     fill: '#' + labelColor,
                     stroke: '#' + labelColor,
-                    uuid: null  // Let viva generate UUID
+                    uuid: null  // Let markin generate UUID
                 };
 
                 markin.createAnnotation(annotationOptions);
             }
 
-            console.log(`Created ${result.mask_polygon.length} annotations for label: ${labelName}`);
+            console.log(`Created ${result.data.masks.length} annotations for label: ${labelName}`);
         }
 
         // Save all annotations to backend
