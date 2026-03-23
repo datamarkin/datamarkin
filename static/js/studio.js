@@ -3,9 +3,7 @@
  * Manages annotations, interactions, and keypoint placement
  */
 
-// Project configuration
-const projectId = document.querySelector('html').dataset.projectId;
-const projectType = document.querySelector('html').dataset.projectType;
+// Project configuration — projectId, projectType, projectLabels are defined inline by the template
 
 const imageContainer = document.getElementById('image-to-annotate');
 
@@ -102,6 +100,11 @@ document.addEventListener('DOMContentLoaded', () => {
     // Setup keypoint buttons
     setupKeypointButtons();
 
+    // Disable SAM for keypoint-detection (markin handles bbox drawing directly)
+    if (projectType === 'keypoint-detection') {
+        toggleSAM();
+    }
+
     zoomist.on('zoom', () => {
         app.zoomistScale = zoomist.transform.scale;
         updateGuidelines()
@@ -111,16 +114,13 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     markin.on('annotationmodificationcomplete', function(data) {
-        // logEvent(`Annotation ${data.type} modification completed: ${data.modificationType}`);
-        // This is the ideal event to use for database updates
-        
-        // Save state when modifications are completed
         markin.saveState(`${data.modificationType}_complete`);
-        updateAPIAnnotations(markin.exportAllAnnotations({ 
+        const exported = markin.exportAllAnnotations({
             normalize: true,
             width: imageWidth,
             height: imageHeight
-        }))
+        });
+        updateAPIAnnotations(normalizeAnnotationsForStorage(exported));
     });
 
     // Track mouse position on the SVG
@@ -243,8 +243,7 @@ function setupKeypointButtons() {
 
         keypointButtons.forEach(button => {
             button.addEventListener('click', function () {
-                // Get the keypoint name from the button text
-                const keypointName = this.querySelector('.icon').textContent.trim();
+                const keypointName = this.dataset.keypointName;
 
                 if (annotation.activeKeypointType === keypointName) {
                     // If clicking the active button, deactivate it
@@ -359,11 +358,12 @@ function validateAnnotation() {
     // This will prevent the annotation from being deleted
     markin.deselect()
     annotation.annotationCanditate = null
-    updateAPIAnnotations(markin.exportAllAnnotations({ 
+    const exported = markin.exportAllAnnotations({
         normalize: true,
         width: imageWidth,
         height: imageHeight
-    }))
+    });
+    updateAPIAnnotations(normalizeAnnotationsForStorage(exported));
     resetAnnotation();
 }
 
@@ -378,14 +378,14 @@ function toggleSAM() {
         // Switching from SAM mode to manual mode
         app.samEnabled = false;
         samToggle.classList.toggle('is-active');
-        samToggleIcon.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6"> <path stroke-linecap="round" stroke-linejoin="round" d="M3.98 8.223A10.477 10.477 0 0 0 1.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.451 10.451 0 0 1 12 4.5c4.756 0 8.773 3.162 10.065 7.498a10.522 10.522 0 0 1-4.293 5.774M6.228 6.228 3 3m3.228 3.228 3.65 3.65m7.894 7.894L21 21m-3.228-3.228-3.65-3.65m0 0a3 3 0 1 0-4.243-4.243m4.242 4.242L9.88 9.88" /> </svg>';
+        if (samToggleIcon) samToggleIcon.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6"> <path stroke-linecap="round" stroke-linejoin="round" d="M3.98 8.223A10.477 10.477 0 0 0 1.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.451 10.451 0 0 1 12 4.5c4.756 0 8.773 3.162 10.065 7.498a10.522 10.522 0 0 1-4.293 5.774M6.228 6.228 3 3m3.228 3.228 3.65 3.65m7.894 7.894L21 21m-3.228-3.228-3.65-3.65m0 0a3 3 0 1 0-4.243-4.243m4.242 4.242L9.88 9.88" /> </svg>';
         // Enable VivaSVG for manual annotation mode
         markin.enable();
     } else {
         // Switching from manual mode to SAM mode
         app.samEnabled = true;
         samToggle.classList.toggle('is-active');
-        samToggleIcon.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6"><path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" /><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" /></svg>';
+        if (samToggleIcon) samToggleIcon.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6"><path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" /><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" /></svg>';
         // Disable VivaSVG during SAM mode
         markin.disable();
     }
@@ -408,6 +408,27 @@ function resetAnnotation() {
     }
 }
 
+
+function normalizeAnnotationsForStorage(exported) {
+    if (!exported || !exported.objects) return exported;
+    return {
+        objects: exported.objects.map(obj => {
+            if (!obj.keypoints) return obj;
+            return {
+                ...obj,
+                keypoints: obj.keypoints.map(kp => {
+                    const label = (typeof projectLabels !== 'undefined') ? projectLabels.find(l => l.id == obj.class) : null;
+                    const kpDef = label?.keypoints?.find(k => k.name === kp.name);
+                    return {
+                        id: kpDef?.id ?? 0,
+                        name: kp.name,
+                        point: kp.point
+                    };
+                })
+            };
+        })
+    };
+}
 
 async function updateAPIAnnotations(exported_annotations) {
     const imageId = document.querySelector('.zoomist-image img').dataset.imageId;
@@ -661,7 +682,15 @@ function handleLabelButtonClick(event) {
         link.href = linkUrl.toString();
     });
 
-    // updateSelectedMaskColor();
+    // For keypoint-detection, show only the selected label's keypoint group
+    if (projectType === 'keypoint-detection') {
+        const labelId = clickedButton.dataset.labelId;
+        document.querySelectorAll('.keypoint-group').forEach(group => {
+            group.style.display = group.dataset.labelId === labelId ? '' : 'none';
+        });
+        annotation.activeKeypointType = null;
+        document.querySelectorAll('.is-keypoint-button').forEach(b => b.classList.remove('is-active'));
+    }
 }
 
 function updateCroppedBbox() {

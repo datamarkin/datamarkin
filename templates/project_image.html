@@ -67,14 +67,35 @@
             <p class="sidebar-heading">Labels</p>
             <div class="sidebar-label-list" id="label-list">
                 {% for label in project.labels %}
-                    <button class="button is-small is-app is-fullwidth is-justify-content-left sidebar-label-btn {{ 'is-active' if loop.first }}"
-                            data-label="{{ label.id }}">
+                    <button class="button is-small is-app is-fullwidth is-justify-content-left sidebar-label-btn is-label-button {{ 'is-active' if loop.first }}"
+                            data-label="{{ label.id }}"
+                            data-label-id="{{ label.id }}"
+                            data-label-color="{{ label.color }}"
+                            data-label-name="{{ label.name }}">
                         <span class="label-checkbox-color" style="background:#{{ label.color }}"></span>
                         <span>{{ label.name }}</span>
                     </button>
                 {% endfor %}
             </div>
         </div>
+        {% if project.type == 'keypoint-detection' %}
+        <div class="app-sidebar-header" id="keypoint-panel">
+            <p class="sidebar-heading">Keypoints</p>
+            {% for label in project.labels %}
+                <div class="keypoint-group" data-label-id="{{ label.id }}"
+                     style="{{ 'display:none' if not loop.first }}">
+                    {% for kp in label.keypoints %}
+                        <button class="button is-small is-app is-fullwidth is-justify-content-left is-keypoint-button"
+                                data-keypoint-id="{{ kp.id }}"
+                                data-keypoint-name="{{ kp.name }}">
+                            <span class="label-checkbox-color" style="background:#{{ kp.color }}"></span>
+                            <span>{{ kp.name }}</span>
+                        </button>
+                    {% endfor %}
+                </div>
+            {% endfor %}
+        </div>
+        {% endif %}
         {% if embedding_id %}
             <div class="app-sidebar-header" id="sam-text-panel">
                 <p class="sidebar-heading">Text Segment</p>
@@ -201,6 +222,29 @@
                                              data-uuid="polygon-{{ obj.uuid if obj.uuid else '' }}">
                                     </polygon>
                                 {% endif %}
+
+                                {% if obj.keypoints %}
+                                    {% for kp in obj.keypoints %}
+                                        {% for label in project.labels %}
+                                            {% if label.id == obj.class %}
+                                                {% for kpdef in label.keypoints %}
+                                                    {% if kpdef.id == kp.id %}
+                                                        {% set cx = kp.point[0] * current_file.width %}
+                                                        {% set cy = kp.point[1] * current_file.height %}
+                                                        <circle data-role="keypoint" data-label="{{ kp.name }}"
+                                                                cx="{{ cx }}" cy="{{ cy }}" r="6"
+                                                                fill="#{{ kpdef.color }}" fill-opacity="{{ keypoint_fill_opacity }}"
+                                                                stroke="#{{ kpdef.color }}" stroke-width="2"
+                                                                stroke-opacity="{{ keypoint_stroke_opacity }}"
+                                                                vector-effect="non-scaling-stroke"
+                                                                id="keypoint-{{ kp.name }}-{{ obj.uuid if obj.uuid else '' }}">
+                                                        </circle>
+                                                    {% endif %}
+                                                {% endfor %}
+                                            {% endif %}
+                                        {% endfor %}
+                                    {% endfor %}
+                                {% endif %}
                             </g>
                         {% endfor %}
                     </svg>
@@ -228,6 +272,12 @@
         } else {
             console.error('MarkinJS failed to initialize - SVG element not found');
         }
+    </script>
+
+    <script>
+        const projectId = "{{ project.id }}";
+        const projectType = "{{ project.type }}";
+        const projectLabels = {{ project.labels | tojson | safe }};
     </script>
 
     <script src="{{ url_for('static', filename='js/studio.js') }}" defer></script>
