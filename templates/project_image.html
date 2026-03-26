@@ -35,14 +35,6 @@
                     <span>Reject</span>
                 </button>
             </div>
-            <div class="buttons has-addons is-centered m-0 pl-3">
-                <button id="auto-label" class="button is-small is-app">
-                    <span class="icon is-small">
-                        {% include 'icons/sparkles.svg' %}
-                    </span>
-                    <span>Auto Annotate</span>
-                </button>
-            </div>
         </div>
         <div class="titlebar-right" style="text-align: right;">
             <span class="is-size-7 has-text-weight-bold"
@@ -160,6 +152,13 @@
         {% set polygon_stroke_opacity = 0 %}
         {% set keypoint_stroke_opacity = 1 %}
     {% endif %}
+
+    <div id="sam-download-banner" style="display:none; position:absolute; top:0; left:0; right:0; z-index:100;"
+         class="notification is-warning is-light py-2 px-4 m-0 has-text-centered">
+        <strong>Downloading SAM model…</strong>
+        <span id="sam-dl-pct" class="ml-2">0%</span>
+        <progress id="sam-dl-progress" class="progress is-small is-warning mt-1 mb-0" value="0" max="100" style="max-width:300px; margin:0 auto;"></progress>
+    </div>
 
     <div id="annotations-container" class="is-align-content-center p-0 m-0">
         <div id="zoomist-container" class="zoomist-container"

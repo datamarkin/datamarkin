@@ -96,7 +96,69 @@ svgElement.addEventListener('click', function (e) {
     }
 });
 
+// ── SAM model download ────────────────────────────────────────────────────────
+
+let _samModelReady = false;
+let _samDownloadPollTimer = null;
+
+function _showDownloadBanner(pct) {
+    const banner = document.getElementById('sam-download-banner');
+    if (banner) {
+        banner.style.display = '';
+        document.getElementById('sam-dl-pct').textContent = pct + '%';
+        document.getElementById('sam-dl-progress').value = pct;
+    }
+}
+
+function _hideDownloadBanner() {
+    const banner = document.getElementById('sam-download-banner');
+    if (banner) banner.style.display = 'none';
+}
+
+function _pollModelDownload() {
+    if (_samDownloadPollTimer) clearInterval(_samDownloadPollTimer);
+    _samDownloadPollTimer = setInterval(() => {
+        fetch('/api/sam/model_status')
+            .then(r => r.json())
+            .then(resp => {
+                const s = resp.data;
+                if (s.status === 'ready') {
+                    clearInterval(_samDownloadPollTimer);
+                    _samModelReady = true;
+                    _hideDownloadBanner();
+                } else if (s.status === 'error') {
+                    clearInterval(_samDownloadPollTimer);
+                    _hideDownloadBanner();
+                    console.error('SAM model download failed:', s.error);
+                } else {
+                    _showDownloadBanner(s.pct || 0);
+                }
+            })
+            .catch(() => {});
+    }, 1000);
+}
+
+async function _ensureSAMModel() {
+    const resp = await fetch('/api/sam/model_status').then(r => r.json());
+    const s = resp.data;
+    if (s.status === 'ready') {
+        _samModelReady = true;
+        return;
+    }
+    // Trigger download (idempotent if already in progress)
+    await fetch('/api/sam/download_model', { method: 'POST' });
+    _showDownloadBanner(0);
+    _pollModelDownload();
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 document.addEventListener('DOMContentLoaded', () => {
+    // Check SAM model availability; auto-download if needed
+    if (projectType !== 'keypoint-detection' && projectType !== 'image-classification') {
+        _ensureSAMModel();
+    }
+
     // Setup keypoint buttons
     setupKeypointButtons();
 
@@ -185,12 +247,6 @@ document.addEventListener('DOMContentLoaded', () => {
             validateAnnotation();
         }
         console.log("Annotation validate triggered");
-    });
-
-    document.getElementById('auto-label').addEventListener('click', async () => {
-        document.getElementById('auto-label').blur();
-        await handleAutoLabel();
-        console.log("Auto label triggered");
     });
 })
 
@@ -466,12 +522,10 @@ function SVGCircleElement(x, y, r = 10, fill = 'red') {
 }
 
 // Check if point is in polygon
+// point is in pixel coords; polygon is normalized [0,1]
 function isPointInPolygon(point, polygon) {
-    let x = point[0], y = point[1];
-
-    // Normalize coordinates
-    x = app.svgX;
-    y = app.svgY;
+    let x = point[0] / imageWidth;
+    let y = point[1] / imageHeight;
 
     let isInside = false;
     for (let i = 0, j = polygon.length - 2; i < polygon.length; j = i, i += 2) {
@@ -498,7 +552,9 @@ svgElement.addEventListener('mousemove', async function (e) {
     if (!annotation.firstInitialised && app.samEnabled) {
         annotation.accumulatedPoints = [[app.mouseX, app.mouseY]]
         annotation.annotationCanditate = await debouncedMaskRequest();
-        await drawCandidateAnnotations(annotation.annotationCanditate);
+        if (annotation.annotationCanditate) {
+            await drawCandidateAnnotations(annotation.annotationCanditate);
+        }
     }
 });
 
@@ -740,13 +796,14 @@ function debouncedMaskRequest() {
         window.maskTimeout = setTimeout(async () => {
             const maskResult = await requestMask();
             resolve(maskResult);
-        }, 100);
+        }, 50);
     });
 }
 
 let _maskAbortController = null;
 
 async function requestMask() {
+    if (!_samModelReady) return null;
     // Cancel any in-flight request to prevent pileup during rapid mouse movement
     if (_maskAbortController) _maskAbortController.abort();
     _maskAbortController = new AbortController();
@@ -772,6 +829,7 @@ async function requestMask() {
         const result = await response.json();
         // SAM3 API returns { segmentation, bbox, score }, but UI expects mask_polygon
         const maskData = result.data.masks[0];
+        if (!maskData) return null;
         return {
             mask_polygon: maskData.segmentation,
             bbox: maskData.bbox,
@@ -785,6 +843,7 @@ async function requestMask() {
 }
 
 async function requestNewEmbedding() {
+    if (!_samModelReady) return null;
     try {
         const response = await fetch('/api/sam/create_embedding', {
             method: 'POST',
@@ -807,106 +866,3 @@ async function requestNewEmbedding() {
     }
 }
 
-async function requestTextMask(textPrompt) {
-    try {
-        const response = await fetch('/api/sam/predict_text', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                'file_id': imageId,
-                'text_prompt': textPrompt,
-                'confidence_threshold': 0.3
-            })
-        });
-
-        if (!response.ok) {
-            throw new Error(`HTTP error! Status: ${response.status}`);
-        }
-
-        return await response.json();
-    } catch (error) {
-        console.error('Error requesting text-based mask:', error);
-        return null;
-    }
-}
-
-async function handleAutoLabel() {
-    const autoLabelButton = document.getElementById('auto-label');
-
-    // Disable button and show loading state
-    autoLabelButton.disabled = true;
-    autoLabelButton.classList.add('is-loading');
-
-    try {
-        // Get all labels from DOM
-        const labelButtons = document.querySelectorAll('.is-label-button');
-
-        // Process each label sequentially
-        for (const labelButton of labelButtons) {
-            const labelId = labelButton.dataset.labelId;
-            const labelName = labelButton.dataset.labelName;
-            const labelColor = labelButton.dataset.labelColor;
-
-            // Request masks for this label
-            const result = await requestTextMask(labelName);
-
-            if (!result || !result.data || !result.data.masks || result.data.masks.length === 0) {
-                console.log(`No detections for label: ${labelName}`);
-                continue;
-            }
-
-            // Create annotation for each detection
-            for (let i = 0; i < result.data.masks.length; i++) {
-                const mask = result.data.masks[i];
-                // Denormalize SAM3 response from [0,1] to pixel coordinates
-                const maskPolygon = mask.segmentation;
-                const denormPolygon = [];
-                for (let j = 0; j < maskPolygon.length; j += 2) {
-                    denormPolygon.push(
-                        maskPolygon[j] * imageWidth,      // x
-                        maskPolygon[j + 1] * imageHeight  // y
-                    );
-                }
-
-                const bbox = mask.bbox;
-                const denormBbox = [
-                    bbox[0] * imageWidth,  // x_min -> pixel
-                    bbox[1] * imageHeight, // y_min -> pixel
-                    bbox[2] * imageWidth,  // x_max -> pixel
-                    bbox[3] * imageHeight  // y_max -> pixel
-                ];
-
-                const annotationOptions = {
-                    bbox: denormBbox,
-                    class: labelId,
-                    segmentation: denormPolygon,
-                    fill: '#' + labelColor,
-                    stroke: '#' + labelColor,
-                    uuid: null  // Let markin generate UUID
-                };
-
-                markin.createAnnotation(annotationOptions);
-            }
-
-            console.log(`Created ${result.data.masks.length} annotations for label: ${labelName}`);
-        }
-
-        // Save all annotations to backend
-        updateAPIAnnotations(markin.exportAllAnnotations({
-            normalize: true,
-            width: imageWidth,
-            height: imageHeight
-        }));
-
-        console.log('Auto label completed');
-
-    } catch (error) {
-        console.error('Auto label error:', error);
-    } finally {
-        // Re-enable button
-        autoLabelButton.disabled = false;
-        autoLabelButton.classList.remove('is-loading');
-    }
-}
