@@ -1,3 +1,6 @@
 flask
 pywebview
 Pillow
+rfdetr
+torch
+torchvision
