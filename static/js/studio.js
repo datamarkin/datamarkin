@@ -827,7 +827,7 @@ async function requestMask() {
         }
 
         const result = await response.json();
-        // SAM3 API returns { segmentation, bbox, score }, but UI expects mask_polygon
+        // EfficientTAM API returns { segmentation, bbox, score }, but UI expects mask_polygon
         const maskData = result.data.masks[0];
         if (!maskData) return null;
         return {

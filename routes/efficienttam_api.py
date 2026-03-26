@@ -1,4 +1,4 @@
-"""SAM API — EfficientTAM (PyTorch + MPS) backend."""
+"""EfficientTAM API (PyTorch + MPS backend)."""
 
 import gc
 import threading
@@ -14,7 +14,7 @@ from PIL import Image as PILImage
 from config import DATA_DIR, EFFICIENTTAM_MODELS_DIR, file_path as get_file_path
 from queries import get_file_by_id
 
-sam3_api = Blueprint("sam_api", __name__, url_prefix="/api/sam")
+efficienttam_api = Blueprint("sam_api", __name__, url_prefix="/api/sam")
 
 _predictor = None
 _cached_file_id = None
@@ -134,12 +134,12 @@ def _get_model_status():
     return dict(_dl_state)
 
 
-@sam3_api.route("/model_status", methods=["GET"])
+@efficienttam_api.route("/model_status", methods=["GET"])
 def sam_model_status():
     return jsonify({"data": _get_model_status()})
 
 
-@sam3_api.route("/download_model", methods=["POST"])
+@efficienttam_api.route("/download_model", methods=["POST"])
 def sam_download_model():
     status = _get_model_status()
     if status["status"] == "ready":
@@ -151,13 +151,13 @@ def sam_download_model():
     return jsonify({"data": {"status": "downloading", "pct": 0, "error": None}})
 
 
-@sam3_api.route("/load", methods=["POST"])
+@efficienttam_api.route("/load", methods=["POST"])
 def sam_load():
     _ensure_loaded()
     return jsonify({"data": {"loaded": True}})
 
 
-@sam3_api.route("/create_embedding", methods=["POST"])
+@efficienttam_api.route("/create_embedding", methods=["POST"])
 def sam_create_embedding():
     body = request.get_json(silent=True) or {}
     file_id = body.get("file_id")
@@ -167,7 +167,7 @@ def sam_create_embedding():
     return jsonify({"data": {"file_id": file_id, "cached": True}})
 
 
-@sam3_api.route("/predict_points", methods=["POST"])
+@efficienttam_api.route("/predict_points", methods=["POST"])
 def sam_predict_points():
     body = request.get_json(silent=True) or {}
     file_id = body.get("file_id")

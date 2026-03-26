@@ -6,7 +6,7 @@ from routes.project_page_route import project_page_route
 # from routes.settings_page_route import settings_page_route
 from routes.files_route import files_route
 from routes.api import api
-from routes.sam3_api import sam3_api
+from routes.efficienttam_api import efficienttam_api
 from config import APP_NAME, APP_VERSION, ALLOWED_EXTENSIONS
 
 
@@ -46,7 +46,7 @@ def create_app() -> Flask:
 
     init_db()
     app.register_blueprint(api)
-    app.register_blueprint(sam3_api)
+    app.register_blueprint(efficienttam_api)
 
     @app.route("/")
     @app.route("/projects")
