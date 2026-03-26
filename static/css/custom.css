@@ -248,7 +248,7 @@ hr {
     line-height: 1;
 }
 
-#settings-modal pre {
+#project-settings-modal pre {
     background: #f5f5f5;
     padding: 12px;
     border-radius: 6px;
@@ -427,4 +427,46 @@ hr {
     box-shadow: unset;
     background: rgba(0, 0, 0, 0.06);
     /*box-shadow: rgba(0, 0, 0, 0.08) 0px 0px 0px 1px;*/
+}
+/* Project settings modal */
+.project-settings-modal-content {
+    width: 720px;
+    max-width: calc(100vw - 2rem);
+}
+.project-settings-box {
+    display: flex;
+    position: relative;
+    padding: 0;
+    overflow: hidden;
+    min-height: 420px;
+    border-radius: 8px;
+}
+.project-settings-box > .delete {
+    position: absolute;
+    top: 0.75rem;
+    right: 0.75rem;
+    z-index: 1;
+}
+.project-settings-left-sidebar {
+    width: 200px;
+    flex-shrink: 0;
+    border-right: 1px solid #eee;
+    padding: 1rem;
+    background: #faf8f4;
+    display: flex;
+    flex-direction: column;
+}
+.project-settings-content {
+    flex: 1;
+    padding: 1.5rem;
+    overflow-y: auto;
+    max-height: 520px;
+}
+.project-settings-content pre {
+    background: #f7ecd9;
+    border-radius: 4px;
+    padding: 0.75rem;
+    font-size: 0.8rem;
+    white-space: pre-wrap;
+    word-break: break-all;
 }

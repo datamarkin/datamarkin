@@ -63,15 +63,6 @@
                     <p class="has-text-grey is-size-7">No labels defined</p>
                 {% endif %}
             </div>
-            <hr>
-            <div class="sidebar-section">
-                <button class="button is-small is-app is-fullwidth is-justify-content-left">
-                    <span class="icon is-small">
-                        {% include 'icons/sparkles.svg' %}
-                    </span>
-                    <span>Auto annotate all images</span>
-                </button>
-            </div>
         </div>
         <div class="app-sidebar-footer">
             {{ project.name }}
@@ -112,28 +103,135 @@
     </div>
 
     <!-- Settings Modal -->
-    <div class="modal" id="settings-modal">
+    <div class="modal" id="project-settings-modal">
         <div class="modal-background"></div>
-        <div class="modal-card">
-            <header class="modal-card-head">
-                <p class="modal-card-title">Project Settings</p>
-                <button class="delete" aria-label="close"></button>
-            </header>
-            <section class="modal-card-body">
-                <h3 class="is-size-5 mb-2">Configuration</h3>
-                <pre>{{ project.configuration | tojson(indent=2) }}</pre>
-                <h3 class="is-size-5 mt-4 mb-2">Augmentation</h3>
-                <pre>{{ project.augmentation | tojson(indent=2) }}</pre>
-                <h3 class="is-size-5 mt-4 mb-2">Preprocessing</h3>
-                <pre>{{ project.preprocessing | tojson(indent=2) }}</pre>
-            </section>
+        <div class="modal-content project-settings-modal-content">
+            <div class="box project-settings-box">
+                <div class="project-settings-left-sidebar">
+                    <div class="buttons">
+                        <button class="button is-text">
+                            <span class="icon is-small">
+                              {% include 'icons/x-mark.svg' %}
+                            </span>
+                        </button>
+                    </div>
+                    <button class="button is-app is-fullwidth is-justify-content-left">
+                        <span class="icon is-small">
+                            {% include 'icons/cog-6-tooth.svg' %}
+                        </span>
+                        <span>Project Settings</span>
+                    </button>
+                    <button class="button is-app is-fullwidth is-justify-content-left">
+                        <span class="icon is-small">
+                            {% include 'icons/swatch.svg' %}
+                        </span>
+                        <span>Labels</span>
+                    </button>
+                    <button class="button is-app is-fullwidth is-justify-content-left">
+                        <span class="icon is-small">
+                            {% include 'icons/viewfinder-circle.svg' %}
+                        </span>
+                        <span>Pre-processing</span>
+                    </button>
+                    <button class="button is-app is-fullwidth is-justify-content-left">
+                        <span class="icon is-small">
+                            {% include 'icons/rectangle-group.svg' %}
+                        </span>
+                        <span>Augmentation</span>
+                    </button>
+                    <button class="button is-app is-fullwidth is-justify-content-left">
+                        <span class="icon is-small">
+                            {% include 'icons/arrow-top-right-on-square.svg' %}
+                        </span>
+                        <span>Export</span>
+                    </button>
+                </div>
+                <div class="project-settings-content p-4">
+                    <p><strong>Project Settings</strong></p>
+                    <hr>
+                    <div class="field">
+                        <label class="label">Project name</label>
+                        <div class="control">
+                            <input class="input" type="text" placeholder="XXXX">
+                        </div>
+                        <p class="help">This is a help text</p>
+                    </div>
+                    <div class="field">
+                        <label class="label">Description</label>
+                        <div class="control">
+                            <textarea class="textarea" placeholder="Textarea"></textarea>
+                        </div>
+                    </div>
+                    <hr>
+                    <p><strong>Manage Labels</strong></p>
+                    <p class="help is-size-7">Define labels for your project. Each label will be used for
+                        annotation.</p>
+                    <div class="label-row-wrapper mb-2">
+                        <div class="field has-addons mt-2 mb-0">
+                            <div class="control is-expanded">
+                                <input class="input label-name" type="text" placeholder="Label name" value="">
+                            </div>
+                            <div class="control">
+                                <input class="label-color" type="color" value="#3498db"
+                                       style="height:40px; width:50px; border:1px solid #dbdbdb; border-radius:4px; cursor:pointer;">
+                            </div>
+                            <div class="control">
+                                <button type="button" class="button is-light"
+                                        onclick="this.closest('.label-row-wrapper').remove()">
+                                    ×
+                                </button>
+                            </div>
+                        </div>
+                        <div class="keypoint-editor pl-4 pt-1" style="display:none">
+                            <div class="keypoints-list"></div>
+                            <button type="button" class="button is-small is-light mt-1"
+                                    onclick="addKeypointToLabel(this)">
+                                + Add keypoint
+                            </button>
+                        </div>
+                    </div>
+                    <div class="label-row-wrapper mb-2">
+                        <div class="field has-addons mt-2 mb-0">
+                            <div class="control is-expanded">
+                                <input class="input label-name" type="text" placeholder="Label name" value="">
+                            </div>
+                            <div class="control">
+                                <input class="label-color" type="color" value="#3498db"
+                                       style="height:40px; width:50px; border:1px solid #dbdbdb; border-radius:4px; cursor:pointer;">
+                            </div>
+                            <div class="control">
+                                <button type="button" class="button is-light"
+                                        onclick="this.closest('.label-row-wrapper').remove()">
+                                    ×
+                                </button>
+                            </div>
+                        </div>
+                        <div class="keypoint-editor pl-4 pt-1" style="display:none">
+                            <div class="keypoints-list"></div>
+                            <button type="button" class="button is-small is-light mt-1"
+                                    onclick="addKeypointToLabel(this)">
+                                + Add keypoint
+                            </button>
+                        </div>
+                    </div>
+                    <hr>
+                    <p><strong>Pre-processing</strong></p>
+                    <p class="help is-size-7">Define pre prcessing steps... etc.</p>
+                    <p>here should a smart way to create pre-processing steps. We need to put some pre-defined nodes...</p>
+                    <hr>
+                    <p><strong>Augmentation</strong></p>
+                    <p class="help is-size-7">Define pre augmentation steps... etc .</p>
+                    <p class="help is-size-7">During training augmentation is made on-fly which means even for same settings, in each epoch model see a different variant of the image.</p>
+                    <p>here should a smart way to create augmentation steps. We need to put some pre-defined nodes...</p>
+                </div>
+            </div>
         </div>
     </div>
 
     <script>
         (function () {
             // --- Settings modal toggle only ---
-            var modal = document.getElementById('settings-modal');
+            var modal = document.getElementById('project-settings-modal');
 
             document.getElementById('settings-btn').addEventListener('click', function () {
                 modal.classList.add('is-active');
