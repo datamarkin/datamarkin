@@ -1,79 +1,74 @@
-"""SAM3 API — stripped to bare minimum to isolate memory leak."""
+"""SAM API — EfficientTAM (PyTorch + MPS) backend."""
 
 import gc
 import threading
+import time
+import urllib.request
+
 import cv2
-import mlx.core as mx
 import numpy as np
+import torch
 from flask import Blueprint, jsonify, request
 from PIL import Image as PILImage
 
-from config import file_path as get_file_path
+from config import DATA_DIR, EFFICIENTTAM_MODELS_DIR, file_path as get_file_path
 from queries import get_file_by_id
 
 sam3_api = Blueprint("sam_api", __name__, url_prefix="/api/sam")
 
-# ---------------------------------------------------------------------------
-# Globals — one model, one processor, one cached state
-# ---------------------------------------------------------------------------
-_processor = None
+_predictor = None
 _cached_file_id = None
-_cached_state = None
 _lock = threading.Lock()
 
+_dl_state = {"status": "idle", "pct": 0, "error": None}
+_dl_lock = threading.Lock()
 
-def _log_mem(label):
-    """Log current Metal GPU memory usage."""
-    active = mx.metal.get_active_memory() / (1024**2)
-    cache = mx.metal.get_cache_memory() / (1024**2)
-    print(f"[MEM] {label}: active={active:.0f}MB cache={cache:.0f}MB")
+_MODEL_ASSET = "EfficientTAM/efficienttam_s.pt"
+_MODEL_URL = "https://dtmfiles.com/EfficientTAM/efficienttam_s.pt"
+
+
+def _device():
+    if torch.backends.mps.is_available():
+        return torch.device("mps")
+    if torch.cuda.is_available():
+        return torch.device("cuda")
+    return torch.device("cpu")
+
+
+def _model_path():
+    return EFFICIENTTAM_MODELS_DIR / "efficienttam_s.pt"
 
 
 def _ensure_loaded():
-    """Load model + processor on first call."""
-    global _processor
-    if _processor is not None:
+    global _predictor
+    if _predictor is not None:
         return
+    ckpt = _model_path()
+    if not ckpt.exists():
+        raise FileNotFoundError("SAM model not downloaded. Use /api/sam/download_model first.")
+    from efficient_track_anything.build_efficienttam import build_efficienttam
+    from efficient_track_anything.efficienttam_image_predictor import EfficientTAMImagePredictor
 
-    from sam3.model_builder import build_sam3_image_model
-    from sam3.model.sam3_image_processor import Sam3Processor
-
-    _log_mem("before model load")
-    model = build_sam3_image_model()
-    _processor = Sam3Processor(model, confidence_threshold=0.5)
-    _log_mem("after model load")
+    model = build_efficienttam(
+        "configs/efficienttam/efficienttam_s.yaml",
+        str(ckpt),
+        device=_device(),
+        hydra_overrides_extra=["++model.compile_image_encoder=false"],
+    )
+    _predictor = EfficientTAMImagePredictor(model)
 
 
 def _ensure_embedding(file_id):
-    """Cache embedding for exactly one image."""
-    global _cached_file_id, _cached_state
-
-    if _cached_file_id == file_id and _cached_state is not None:
-        return _cached_state
-
+    global _cached_file_id
+    if _cached_file_id == file_id:
+        return
     file_row = get_file_by_id(file_id)
     if not file_row:
         raise ValueError(f"File not found: {file_id}")
-
     image_path = get_file_path(file_row["filename"])
-    image = PILImage.open(image_path).convert("RGB")
-
-    _log_mem("before set_image")
-    _cached_state = _processor.set_image(image)
+    image = np.array(PILImage.open(image_path).convert("RGB"))
+    _predictor.set_image(image)
     _cached_file_id = file_id
-    _log_mem("after set_image")
-
-    return _cached_state
-
-
-def _reset(state):
-    """Clean ALL inference artifacts from state. Only backbone_out +
-    original_height + original_width should survive."""
-    if "backbone_out" in state:
-        for k in ("language_features", "language_mask", "language_embeds"):
-            state["backbone_out"].pop(k, None)
-    for k in ("geometric_prompt", "boxes", "masks", "scores"):
-        state.pop(k, None)
 
 
 def _mask_to_polygon(mask_2d):
@@ -81,44 +76,80 @@ def _mask_to_polygon(mask_2d):
     contours, _ = cv2.findContours(mask_uint8, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     if not contours:
         return []
-    largest = max(contours, key=cv2.contourArea)
-    return largest.reshape(-1).tolist()
+    return max(contours, key=cv2.contourArea).reshape(-1).tolist()
 
 
-def _format_results(state, width, height):
-    masks = state.get("masks")
-    boxes = state.get("boxes")
-    scores = state.get("scores")
-    if masks is None:
-        return []
+def _run_download():
+    global _dl_state
+    import pixelflow as pf
 
-    # Force MLX evaluation and convert to numpy BEFORE we do anything else
-    masks_np = np.array(masks)
-    boxes_np = np.array(boxes)
-    scores_np = np.array(scores)
+    with _dl_lock:
+        if _dl_state["status"] == "downloading":
+            return
+        _dl_state.update({"status": "downloading", "pct": 0, "error": None})
 
-    results = []
-    for i in range(masks_np.shape[0]):
-        polygon_px = _mask_to_polygon(masks_np[i, 0])
-        if not polygon_px:
-            continue
-        norm_polygon = []
-        for j in range(0, len(polygon_px), 2):
-            norm_polygon.append(polygon_px[j] / width)
-            norm_polygon.append(polygon_px[j + 1] / height)
-        box = boxes_np[i]
-        results.append({
-            "segmentation": norm_polygon,
-            "bbox": [float(box[0]) / width, float(box[1]) / height,
-                     float(box[2]) / width, float(box[3]) / height],
-            "score": float(scores_np[i]),
-        })
-    return results
+    try:
+        # Pre-fetch Content-Length for progress tracking
+        total = 0
+        try:
+            req = urllib.request.Request(_MODEL_URL, method="HEAD")
+            with urllib.request.urlopen(req, timeout=10) as r:
+                total = int(r.headers.get("Content-Length", 0))
+        except Exception:
+            pass
+
+        tmp = _model_path().with_suffix(".pt.download")
+        result = [None]
+        exc = [None]
+
+        def do_download():
+            try:
+                result[0] = pf.assets.download(_MODEL_ASSET, directory=DATA_DIR, quiet=True)
+            except Exception as e:
+                exc[0] = e
+
+        t = threading.Thread(target=do_download, daemon=True)
+        t.start()
+
+        while t.is_alive():
+            if total > 0 and tmp.exists():
+                try:
+                    _dl_state["pct"] = min(99, int(tmp.stat().st_size / total * 100))
+                except OSError:
+                    pass
+            time.sleep(0.5)
+        t.join()
+
+        if exc[0] is not None:
+            raise exc[0]
+
+        _dl_state.update({"status": "ready", "pct": 100, "error": None})
+    except Exception as e:
+        _dl_state.update({"status": "error", "error": str(e)})
 
 
-# ---------------------------------------------------------------------------
-# Single route — predict_points
-# ---------------------------------------------------------------------------
+def _get_model_status():
+    if _model_path().exists():
+        return {"status": "ready", "pct": 100, "error": None}
+    return dict(_dl_state)
+
+
+@sam3_api.route("/model_status", methods=["GET"])
+def sam_model_status():
+    return jsonify({"data": _get_model_status()})
+
+
+@sam3_api.route("/download_model", methods=["POST"])
+def sam_download_model():
+    status = _get_model_status()
+    if status["status"] == "ready":
+        return jsonify({"data": status})
+    if _dl_state["status"] == "downloading":
+        return jsonify({"data": _dl_state})
+    t = threading.Thread(target=_run_download, daemon=True)
+    t.start()
+    return jsonify({"data": {"status": "downloading", "pct": 0, "error": None}})
+
 
 @sam3_api.route("/load", methods=["POST"])
 def sam_load():
@@ -131,7 +162,8 @@ def sam_create_embedding():
     body = request.get_json(silent=True) or {}
     file_id = body.get("file_id")
     _ensure_loaded()
-    _ensure_embedding(file_id)
+    with _lock:
+        _ensure_embedding(file_id)
     return jsonify({"data": {"file_id": file_id, "cached": True}})
 
 
@@ -140,7 +172,6 @@ def sam_predict_points():
     body = request.get_json(silent=True) or {}
     file_id = body.get("file_id")
     points = body.get("points", [])
-    print(points)
     labels = body.get("labels", [])
 
     file_row = get_file_by_id(file_id)
@@ -150,56 +181,31 @@ def sam_predict_points():
     _ensure_loaded()
 
     with _lock:
-        state = _ensure_embedding(file_id)
+        _ensure_embedding(file_id)
 
-        _log_mem("before inference")
+        coords = np.array(points, dtype=np.float32)   # [[px, py], ...]
+        lbls = np.array([int(bool(l)) for l in labels], dtype=np.int32)
 
-        # 1. Reset — exact same pattern as points_example.py
-        _reset(state)
+        masks, scores, _ = _predictor.predict(
+            point_coords=coords,
+            point_labels=lbls,
+            multimask_output=True,
+        )
 
-        # 2. Normalize and run inference (processor evals results internally)
-        norm_points = [[px / width, py / height] for px, py in points]
-        bool_labels = [bool(l) for l in labels]
-        _processor.add_points_prompt(points=norm_points, labels=bool_labels, state=state)
+        best = int(np.argmax(scores))
+        polygon_px = _mask_to_polygon(masks[best])
 
-        # 3. Format results (converts to pure python — no MLX references)
-        masks = _format_results(state, width, height)
+    gc.collect()
 
-        # 4. Clean up inference tensors and release GPU memory to OS
-        _reset(state)
-        mx.clear_cache()
-        gc.collect()
+    if not polygon_px:
+        return jsonify({"data": {"masks": []}})
 
-        _log_mem("after cleanup")
+    norm_polygon = [
+        polygon_px[i] / (width if i % 2 == 0 else height)
+        for i in range(len(polygon_px))
+    ]
+    xs = norm_polygon[0::2]
+    ys = norm_polygon[1::2]
+    bbox = [min(xs), min(ys), max(xs), max(ys)]
 
-    return jsonify({"data": {"masks": masks}})
-
-
-@sam3_api.route("/predict_text", methods=["POST"])
-def sam_predict_text():
-    body = request.get_json(silent=True) or {}
-    file_id = body.get("file_id")
-    text_prompt = (body.get("text_prompt") or "").strip()
-    confidence_threshold = body.get("confidence_threshold")
-
-    file_row = get_file_by_id(file_id)
-    width = file_row["width"]
-    height = file_row["height"]
-
-    _ensure_loaded()
-
-    with _lock:
-        state = _ensure_embedding(file_id)
-
-        _reset(state)
-
-        if confidence_threshold is not None:
-            _processor.confidence_threshold = float(confidence_threshold)
-
-        _processor.set_text_prompt(prompt=text_prompt, state=state)
-        masks = _format_results(state, width, height)
-        _reset(state)
-        mx.clear_cache()
-        gc.collect()
-
-    return jsonify({"data": {"masks": masks}})
+    return jsonify({"data": {"masks": [{"segmentation": norm_polygon, "bbox": bbox, "score": float(scores[best])}]}})
