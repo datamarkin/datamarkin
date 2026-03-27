@@ -71,12 +71,15 @@ def _ensure_embedding(file_id):
     _cached_file_id = file_id
 
 
-def _mask_to_polygon(mask_2d):
+def _mask_to_polygon(mask_2d, epsilon_ratio=0.002):
     mask_uint8 = (mask_2d > 0).astype(np.uint8) * 255
     contours, _ = cv2.findContours(mask_uint8, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     if not contours:
         return []
-    return max(contours, key=cv2.contourArea).reshape(-1).tolist()
+    contour = max(contours, key=cv2.contourArea)
+    epsilon = epsilon_ratio * cv2.arcLength(contour, closed=True)
+    simplified = cv2.approxPolyDP(contour, epsilon, closed=True)
+    return simplified.reshape(-1).tolist()
 
 
 def _run_download():
