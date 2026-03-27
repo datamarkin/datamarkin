@@ -119,31 +119,31 @@
                         <span class="icon is-small">
                             {% include 'icons/cog-6-tooth.svg' %}
                         </span>
-                        <span>Project Settings</span>
+                        <span class="has-text-weight-normal">Project Settings</span>
                     </button>
                     <button class="button is-app is-fullwidth is-justify-content-left settings-nav-btn" data-panel="labels">
                         <span class="icon is-small">
                             {% include 'icons/swatch.svg' %}
                         </span>
-                        <span>Labels</span>
+                        <span class="has-text-weight-normal">Labels</span>
                     </button>
                     <button class="button is-app is-fullwidth is-justify-content-left settings-nav-btn" data-panel="preprocessing">
                         <span class="icon is-small">
                             {% include 'icons/viewfinder-circle.svg' %}
                         </span>
-                        <span>Pre-processing</span>
+                        <span class="has-text-weight-normal">Pre-processing</span>
                     </button>
                     <button class="button is-app is-fullwidth is-justify-content-left settings-nav-btn" data-panel="augmentation">
                         <span class="icon is-small">
                             {% include 'icons/rectangle-group.svg' %}
                         </span>
-                        <span>Augmentation</span>
+                        <span class="has-text-weight-normal">Augmentation</span>
                     </button>
                     <button class="button is-app is-fullwidth is-justify-content-left settings-nav-btn" data-panel="export">
                         <span class="icon is-small">
                             {% include 'icons/arrow-top-right-on-square.svg' %}
                         </span>
-                        <span>Export</span>
+                        <span class="has-text-weight-normal">Export</span>
                     </button>
                 </div>
                 <div class="project-settings-content">
@@ -151,24 +151,29 @@
                     <!-- Panel: Project Settings -->
                     <div class="settings-panel is-active" id="panel-settings">
                         <p class="is-size-6 has-text-weight-semibold mb-4">Project Settings</p>
+                        <hr>
                         <div class="field">
-                            <label class="label">Project name</label>
+                            <label class="label has-text-weight-normal">Project name</label>
                             <div class="control">
                                 <input class="input" type="text" value="{{ project.name }}" placeholder="Project name">
                             </div>
                         </div>
                         <div class="field">
-                            <label class="label">Description</label>
+                            <label class="label has-text-weight-normal">Description</label>
                             <div class="control">
                                 <textarea class="textarea" placeholder="Add a description...">{{ project.description or '' }}</textarea>
                             </div>
+                        </div>
+                        <div class="field mt-4">
+                            <button type="button" class="button is-small is-dark" id="save-settings-btn">Save</button>
+                            <span class="ml-2 is-size-7 has-text-grey" id="save-settings-feedback"></span>
                         </div>
                     </div>
 
                     <!-- Panel: Labels -->
                     <div class="settings-panel" id="panel-labels">
                         <p class="is-size-6 has-text-weight-semibold mb-1">Labels</p>
-                        <p class="help is-size-7 mb-3">Define labels for annotation. Each label can optionally have keypoints for pose estimation.</p>
+                        <hr>
                         <div id="labels-list">
                             {% for label in project.labels %}
                             <div class="label-row-wrapper mb-2">
@@ -215,6 +220,10 @@
                         <button type="button" class="button is-small is-light mt-2" onclick="addLabelRow()">
                             + Add label
                         </button>
+                        <div class="mt-3">
+                            <button type="button" class="button is-small is-dark" id="save-labels-btn">Save labels</button>
+                            <span class="ml-2 is-size-7 has-text-grey" id="save-labels-feedback"></span>
+                        </div>
                     </div>
 
                     <!-- Panel: Pre-processing -->
@@ -439,6 +448,8 @@
                 pVal.textContent = '0.50';
                 pSlider.addEventListener('input', function() {
                     pVal.textContent = parseFloat(this.value).toFixed(2);
+                    var root = li.closest('.pipeline-stage-col');
+                    if (root) schedulePipelineSave(root.querySelector('.pipeline-list'), true);
                 });
                 pCtrl.appendChild(pLbl);
                 pCtrl.appendChild(pSlider);
@@ -449,7 +460,13 @@
             const del = document.createElement('button');
             del.className = 'transform-delete';
             del.textContent = '×';
-            del.addEventListener('click', function(e) { e.stopPropagation(); li.remove(); });
+            del.addEventListener('click', function(e) {
+                e.stopPropagation();
+                var root = li.closest('.pipeline-stage-col');
+                var isAugPanel = li.closest('#panel-augmentation') !== null;
+                li.remove();
+                if (root) schedulePipelineSave(root.querySelector('.pipeline-list'), isAugPanel);
+            });
             header.appendChild(del);
             li.appendChild(header);
 
@@ -482,6 +499,11 @@
                     if (param.min !== undefined) inp.min = param.min;
                     if (param.max !== undefined) inp.max = param.max;
                     if (param.step !== undefined) inp.step = param.step;
+                    inp.addEventListener('change', function() {
+                        var root = li.closest('.pipeline-stage-col');
+                        var isAugPanel = li.closest('#panel-augmentation') !== null;
+                        if (root) schedulePipelineSave(root.querySelector('.pipeline-list'), isAugPanel);
+                    });
                     row.appendChild(inp);
                     paramsEl.appendChild(row);
                 });
@@ -508,7 +530,9 @@
                     const card = createTransformCard(def, isAug);
                     pipelineEl.insertBefore(card, evt.item);
                     evt.item.remove();
+                    schedulePipelineSave(pipelineEl, isAug);
                 },
+                onUpdate: function() { schedulePipelineSave(pipelineEl, isAug); },
             });
         }
 
@@ -531,6 +555,104 @@
                 const def = findDef(item.dataset.type, catalog);
                 if (!def) return;
                 pipelineEl.appendChild(createTransformCard(def, isAug));
+                schedulePipelineSave(pipelineEl, isAug);
+            });
+        }
+
+        function serializePipeline(pipelineEl, isAug) {
+            const transforms = [];
+            pipelineEl.querySelectorAll(':scope > .transform-card').forEach(function(card) {
+                const type = card.dataset.type;
+                const t = { type: type };
+                if (isAug) {
+                    const sl = card.querySelector('.p-slider');
+                    t.p = sl ? parseFloat(sl.value) : 1.0;
+                }
+                if (type === 'OneOf') {
+                    const inner = card.querySelector('.oneof-list');
+                    t.children = inner ? serializeChildren(inner, isAug) : [];
+                } else {
+                    t.params = {};
+                    card.querySelectorAll('.param-row input[data-param]').forEach(function(inp) {
+                        t.params[inp.dataset.param] = parseFloat(inp.value);
+                    });
+                }
+                transforms.push(t);
+            });
+            return { transforms: transforms };
+        }
+
+        function serializeChildren(listEl, isAug) {
+            const out = [];
+            listEl.querySelectorAll(':scope > .transform-card').forEach(function(card) {
+                const t = { type: card.dataset.type, params: {} };
+                if (isAug) {
+                    const sl = card.querySelector('.p-slider');
+                    t.p = sl ? parseFloat(sl.value) : 1.0;
+                }
+                card.querySelectorAll('.param-row input[data-param]').forEach(function(inp) {
+                    t.params[inp.dataset.param] = parseFloat(inp.value);
+                });
+                out.push(t);
+            });
+            return out;
+        }
+
+        var _projectId = '';  // set by IIFE below
+        var _pipelineSaveTimer = null;
+        function schedulePipelineSave(pipelineEl, isAug) {
+            // Always serialize from the root pipeline, not a nested oneof-list
+            var rootEl = document.getElementById(isAug ? 'aug-pipeline' : 'pp-pipeline') || pipelineEl;
+            clearTimeout(_pipelineSaveTimer);
+            _pipelineSaveTimer = setTimeout(function() {
+                var key = isAug ? 'augmentation' : 'preprocessing';
+                fetch('/project/' + _projectId + '/pipeline', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ key: key, pipeline: serializePipeline(rootEl, isAug) }),
+                });
+            }, 600);
+        }
+
+        function loadPipeline(pipelineEl, pipelineJson, catalog, isAug) {
+            if (!pipelineJson || !pipelineJson.transforms || !pipelineJson.transforms.length) return;
+            pipelineJson.transforms.forEach(function(t) {
+                const def = findDef(t.type, catalog);
+                if (!def) return;
+                const card = createTransformCard(def, isAug);
+                if (t.params) {
+                    card.querySelectorAll('.param-row input[data-param]').forEach(function(inp) {
+                        if (t.params[inp.dataset.param] !== undefined) inp.value = t.params[inp.dataset.param];
+                    });
+                }
+                if (isAug && t.p !== undefined) {
+                    const sl = card.querySelector('.p-slider');
+                    const pv = card.querySelector('.p-value');
+                    if (sl) { sl.value = t.p; pv.textContent = parseFloat(t.p).toFixed(2); }
+                }
+                pipelineEl.appendChild(card);
+                if (t.type === 'OneOf' && t.children && t.children.length) {
+                    setTimeout(function() {
+                        const innerList = card.querySelector('.oneof-list');
+                        if (!innerList) return;
+                        t.children.forEach(function(child) {
+                            const childDef = findDef(child.type, catalog);
+                            if (!childDef) return;
+                            const cc = createTransformCard(childDef, isAug);
+                            if (child.params) {
+                                cc.querySelectorAll('.param-row input[data-param]').forEach(function(inp) {
+                                    if (child.params[inp.dataset.param] !== undefined) inp.value = child.params[inp.dataset.param];
+                                });
+                            }
+                            if (isAug && child.p !== undefined) {
+                                const sl = cc.querySelector('.p-slider');
+                                const pv = cc.querySelector('.p-value');
+                                if (sl) { sl.value = child.p; pv.textContent = parseFloat(child.p).toFixed(2); }
+                            }
+                            innerList.appendChild(cc);
+                        });
+                    }, 0);
+                }
             });
         }
 
@@ -584,6 +706,38 @@
             initPipelineSortable(document.getElementById('aug-pipeline'), AUG_CATALOG, true);
             initCatalogSortable(document.getElementById('pp-catalog'), false);
             initCatalogSortable(document.getElementById('aug-catalog'), true);
+            loadPipeline(document.getElementById('pp-pipeline'), {{ project.preprocessing | tojson }}, PP_CATALOG, false);
+            loadPipeline(document.getElementById('aug-pipeline'), {{ project.augmentation | tojson }}, AUG_CATALOG, true);
+
+            var projectId = '{{ project.id }}';
+            _projectId = projectId;
+
+            // --- Save project settings ---
+            function collectAndSave(feedbackEl) {
+                var name = document.querySelector('#panel-settings input[type="text"]').value.trim();
+                var desc = document.querySelector('#panel-settings textarea').value;
+                if (!name) { feedbackEl.textContent = 'Name is required'; return; }
+                var labels = [];
+                document.querySelectorAll('#labels-list .label-row-wrapper').forEach(function(row, i) {
+                    var labelName = row.querySelector('.label-name').value.trim();
+                    var color = row.querySelector('.label-color').value.replace('#', '');
+                    if (labelName) labels.push({ id: i, name: labelName, color: color });
+                });
+                fetch('/project/' + projectId + '/settings', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name: name, description: desc, labels: labels }),
+                }).then(function(r) { return r.json(); }).then(function(data) {
+                    feedbackEl.textContent = data.ok ? 'Saved' : (data.error || 'Error');
+                    setTimeout(function() { feedbackEl.textContent = ''; }, 2500);
+                });
+            }
+            document.getElementById('save-settings-btn').addEventListener('click', function() {
+                collectAndSave(document.getElementById('save-settings-feedback'));
+            });
+            document.getElementById('save-labels-btn').addEventListener('click', function() {
+                collectAndSave(document.getElementById('save-labels-feedback'));
+            });
 
             // --- Drop zone upload ---
             var dropZone = document.getElementById('drop-zone');
@@ -592,7 +746,6 @@
             var uploadBar = document.getElementById('upload-bar');
             var uploadStatus = document.getElementById('upload-status');
             var dropZoneText = document.getElementById('drop-zone-text');
-            var projectId = '{{ project.id }}';
 
             dropZone.addEventListener('click', function () {
                 fileInput.click();

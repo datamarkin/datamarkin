@@ -7,7 +7,7 @@ from PIL import Image
 from config import file_path as get_file_path, ALLOWED_EXTENSIONS
 from db import new_id
 from db_models import Project, File
-from queries import get_all_projects, get_project_by_id, get_project_files, get_file_by_id, create_project, insert_file
+from queries import get_all_projects, get_project_by_id, get_project_files, get_file_by_id, create_project, insert_file, update_project_info, update_project_pipeline
 
 
 def projects_page_route():
@@ -61,6 +61,32 @@ def project_upload_route(project_id: str):
     insert_file(file_id, project_id, filename, ext, width, height, filesize)
 
     return jsonify({"id": file_id, "filename": filename, "width": width, "height": height}), 201
+
+
+def project_pipeline_route(project_id: str):
+    project = get_project_by_id(project_id)
+    if not project:
+        abort(404)
+    data = request.get_json()
+    key = data.get('key')
+    if key not in ('preprocessing', 'augmentation'):
+        return jsonify({'error': 'invalid key'}), 400
+    update_project_pipeline(project_id, key, data.get('pipeline', {}))
+    return jsonify({'ok': True})
+
+
+def project_settings_route(project_id: str):
+    project = get_project_by_id(project_id)
+    if not project:
+        abort(404)
+    data = request.get_json()
+    name = (data.get('name') or '').strip()
+    if not name:
+        return jsonify({'error': 'name required'}), 400
+    description = data.get('description', '') or ''
+    labels = data.get('labels', [])
+    update_project_info(project_id, name, description, labels)
+    return jsonify({'ok': True, 'name': name})
 
 
 def project_image_page_route(project_id: str, file_id: str):

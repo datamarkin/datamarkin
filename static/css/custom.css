@@ -441,12 +441,7 @@ hr {
     min-height: 420px;
     border-radius: 8px;
 }
-.project-settings-box > .delete {
-    position: absolute;
-    top: 0.75rem;
-    right: 0.75rem;
-    z-index: 1;
-}
+
 .project-settings-left-sidebar {
     width: 200px;
     flex-shrink: 0;
@@ -468,6 +463,11 @@ hr {
     font-size: 0.8rem;
     white-space: pre-wrap;
     word-break: break-all;
+}
+
+.project-settings-box .icon svg {
+    width: 1.25em;
+    height: 1.25em;
 }
 
 /* ── Settings tab panels ─────────────────────────────────────────────────── */

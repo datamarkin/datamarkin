@@ -142,6 +142,28 @@ def insert_file(file_id, project_id, filename, extension, width, height, filesiz
     return file_id
 
 
+def update_project_info(project_id: str, name: str, description: str, labels: list) -> None:
+    import json
+    conn = get_db()
+    conn.execute(
+        "UPDATE projects SET name = ?, description = ?, labels = ?, updated_at = ? WHERE id = ?",
+        (name.strip(), description.strip(), json.dumps(labels), now(), project_id),
+    )
+    conn.commit()
+    conn.close()
+
+
+def update_project_pipeline(project_id: str, key: str, pipeline_json: dict) -> None:
+    import json
+    conn = get_db()
+    conn.execute(
+        f"UPDATE projects SET {key} = ?, updated_at = ? WHERE id = ?",
+        (json.dumps(pipeline_json), now(), project_id),
+    )
+    conn.commit()
+    conn.close()
+
+
 def update_file_annotations(file_id: str, annotations_json: str) -> None:
     conn = get_db()
     conn.execute(

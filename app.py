@@ -1,7 +1,7 @@
 from flask import Flask, render_template, request
 from db import init_db
 from routes.projects_page_route import projects_page_route, project_new_page_route, project_upload_route, \
-    project_image_page_route
+    project_image_page_route, project_settings_route, project_pipeline_route
 from routes.project_page_route import project_page_route
 # from routes.settings_page_route import settings_page_route
 from routes.files_route import files_route
@@ -62,6 +62,14 @@ def create_app() -> Flask:
         return project_page_route(project_id)
 
     # TODO this is not a good file upload route
+    @app.route("/project/<project_id>/settings", methods=["POST"])
+    def project_settings(project_id):
+        return project_settings_route(project_id)
+
+    @app.route("/project/<project_id>/pipeline", methods=["POST"])
+    def project_pipeline(project_id):
+        return project_pipeline_route(project_id)
+
     @app.route("/project/<project_id>/upload", methods=["POST"])
     def project_upload(project_id):
         return project_upload_route(project_id)
