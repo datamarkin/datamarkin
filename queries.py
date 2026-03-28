@@ -164,6 +164,39 @@ def update_project_pipeline(project_id: str, key: str, pipeline_json: dict) -> N
     conn.close()
 
 
+def update_project_configuration(project_id: str, config_json: str) -> None:
+    conn = get_db()
+    conn.execute(
+        "UPDATE projects SET configuration = ?, updated_at = ? WHERE id = ?",
+        (config_json, now(), project_id),
+    )
+    conn.commit()
+    conn.close()
+
+
+def assign_file_splits(project_id: str, train_ratio: float, val_ratio: float, test_ratio: float) -> dict:
+    import random
+    conn = get_db()
+    ids = [r[0] for r in conn.execute(
+        "SELECT id FROM files WHERE project_id = ? ORDER BY created_at", (project_id,)
+    ).fetchall()]
+    random.shuffle(ids)
+    n = len(ids)
+    n_train = round(n * train_ratio)
+    n_val   = round(n * val_ratio)
+    splits = (
+        [("train", i) for i in ids[:n_train]] +
+        [("valid", i) for i in ids[n_train:n_train + n_val]] +
+        [("test",  i) for i in ids[n_train + n_val:]]
+    )
+    ts = now()
+    for split, file_id in splits:
+        conn.execute("UPDATE files SET split = ?, updated_at = ? WHERE id = ?", (split, ts, file_id))
+    conn.commit()
+    conn.close()
+    return {"train": n_train, "valid": n_val, "test": n - n_train - n_val}
+
+
 def update_file_annotations(file_id: str, annotations_json: str) -> None:
     conn = get_db()
     conn.execute(
@@ -179,6 +212,69 @@ def get_project_files(project_id: str) -> list[dict]:
     rows = conn.execute(
         "SELECT * FROM files WHERE project_id = ? ORDER BY sort_order, created_at DESC",
         (project_id,)
+    ).fetchall()
+    conn.close()
+    return [dict(row) for row in rows]
+
+
+# ── Training queries ──────────────────────────────────────────────────────────
+
+def create_training(project_id: str, config_json: str) -> str:
+    conn = get_db()
+    training_id = new_id()
+    ts = now()
+    conn.execute(
+        """INSERT INTO trainings (id, project_id, status, config, created_at, updated_at)
+           VALUES (?, ?, 'pending', ?, ?, ?)""",
+        (training_id, project_id, config_json, ts, ts),
+    )
+    conn.commit()
+    conn.close()
+    return training_id
+
+
+def get_training(training_id: str) -> dict | None:
+    conn = get_db()
+    row = conn.execute("SELECT * FROM trainings WHERE id = ?", (training_id,)).fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
+def update_training_progress(training_id: str, progress_json: str) -> None:
+    conn = get_db()
+    conn.execute(
+        "UPDATE trainings SET progress = ?, updated_at = ? WHERE id = ?",
+        (progress_json, now(), training_id),
+    )
+    conn.commit()
+    conn.close()
+
+
+def update_training_done(training_id: str, model_path: str, metrics_json: str) -> None:
+    conn = get_db()
+    conn.execute(
+        "UPDATE trainings SET status = 'done', model_path = ?, metrics = ?, updated_at = ? WHERE id = ?",
+        (model_path, metrics_json, now(), training_id),
+    )
+    conn.commit()
+    conn.close()
+
+
+def update_training_status(training_id: str, status: str, error: str | None = None) -> None:
+    conn = get_db()
+    conn.execute(
+        "UPDATE trainings SET status = ?, error = ?, updated_at = ? WHERE id = ?",
+        (status, error, now(), training_id),
+    )
+    conn.commit()
+    conn.close()
+
+
+def get_project_trainings(project_id: str) -> list[dict]:
+    conn = get_db()
+    rows = conn.execute(
+        "SELECT * FROM trainings WHERE project_id = ? ORDER BY created_at DESC",
+        (project_id,),
     ).fetchall()
     conn.close()
     return [dict(row) for row in rows]

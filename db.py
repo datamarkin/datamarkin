@@ -2,13 +2,14 @@ import sqlite3
 import uuid
 from datetime import datetime, timezone
 
-from config import DATA_DIR, DB_PATH, FILES_DIR, EFFICIENTTAM_MODELS_DIR
+from config import DATA_DIR, DB_PATH, FILES_DIR, MODELS_DIR, TRAINING_JOBS_DIR, EFFICIENTTAM_MODELS_DIR
 
 
 def get_db() -> sqlite3.Connection:
     conn = sqlite3.connect(str(DB_PATH))
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
+    conn.execute("PRAGMA journal_mode=WAL")
     return conn
 
 
@@ -16,6 +17,8 @@ def init_db() -> None:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     (DATA_DIR / "projects").mkdir(exist_ok=True)
     FILES_DIR.mkdir(exist_ok=True)
+    MODELS_DIR.mkdir(exist_ok=True)
+    TRAINING_JOBS_DIR.mkdir(exist_ok=True)
     EFFICIENTTAM_MODELS_DIR.mkdir(parents=True, exist_ok=True)
 
     conn = get_db()
@@ -51,6 +54,20 @@ def init_db() -> None:
             annotations     TEXT,
             created_at      TEXT NOT NULL,
             updated_at      TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS trainings (
+            id            TEXT PRIMARY KEY,
+            project_id    TEXT REFERENCES projects(id) ON DELETE CASCADE,
+            status        TEXT DEFAULT 'pending',
+            pid           INTEGER,
+            config        TEXT NOT NULL,
+            progress      TEXT,
+            metrics       TEXT,
+            error         TEXT,
+            model_path    TEXT,
+            created_at    TEXT NOT NULL,
+            updated_at    TEXT NOT NULL
         );
     """)
     conn.close()

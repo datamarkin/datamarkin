@@ -9,6 +9,7 @@ DATA_DIR = Path.home() / "Datamarkin"
 DB_PATH = DATA_DIR / "datamarkin.db"
 FILES_DIR = DATA_DIR / "files"
 MODELS_DIR = DATA_DIR / "models"
+TRAINING_JOBS_DIR = DATA_DIR / "training_jobs"
 EFFICIENTTAM_MODELS_DIR = DATA_DIR / "dtmfiles" / "EfficientTAM"
 
 FLASK_PORT = 5001
