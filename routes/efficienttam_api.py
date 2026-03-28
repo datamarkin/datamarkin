@@ -40,7 +40,7 @@ def _model_path():
 
 
 def _ensure_loaded():
-    global _predictor
+    global _predictor, _cached_file_id
     if _predictor is not None:
         return
     ckpt = _model_path()
@@ -56,6 +56,7 @@ def _ensure_loaded():
         hydra_overrides_extra=["++model.compile_image_encoder=false"],
     )
     _predictor = EfficientTAMImagePredictor(model)
+    _cached_file_id = None
 
 
 def _ensure_embedding(file_id):
@@ -164,8 +165,8 @@ def sam_load():
 def sam_create_embedding():
     body = request.get_json(silent=True) or {}
     file_id = body.get("file_id")
-    _ensure_loaded()
     with _lock:
+        _ensure_loaded()
         _ensure_embedding(file_id)
     return jsonify({"data": {"file_id": file_id, "cached": True}})
 
@@ -181,9 +182,8 @@ def sam_predict_points():
     width = file_row["width"]
     height = file_row["height"]
 
-    _ensure_loaded()
-
     with _lock:
+        _ensure_loaded()
         _ensure_embedding(file_id)
 
         coords = np.array(points, dtype=np.float32)   # [[px, py], ...]
