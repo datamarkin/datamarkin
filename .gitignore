@@ -4,3 +4,5 @@ datamarkin.com/*
 __pycache__
 /experiments/rf-detr/output
 /output
+*rf-detr-*.pth
+*rf-detr-*.pt
