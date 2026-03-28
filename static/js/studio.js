@@ -182,7 +182,7 @@ document.addEventListener('DOMContentLoaded', () => {
             width: imageWidth,
             height: imageHeight
         });
-        updateAPIAnnotations(normalizeAnnotationsForStorage(exported));
+        updateAPIAnnotations(convertMarkinToStorageFormat(exported));
     });
 
     // Track mouse position on the SVG
@@ -419,7 +419,7 @@ function validateAnnotation() {
         width: imageWidth,
         height: imageHeight
     });
-    updateAPIAnnotations(normalizeAnnotationsForStorage(exported));
+    updateAPIAnnotations(convertMarkinToStorageFormat(exported));
     resetAnnotation();
 }
 
@@ -465,39 +465,55 @@ function resetAnnotation() {
 }
 
 
-function normalizeAnnotationsForStorage(exported) {
-    if (!exported || !exported.objects) return exported;
+function convertMarkinToStorageFormat(exported) {
+    if (!exported || !exported.annotations) return null;
     return {
-        objects: exported.objects.map(obj => {
-            if (!obj.keypoints) return obj;
-            return {
-                ...obj,
-                keypoints: obj.keypoints.map(kp => {
-                    const label = (typeof projectLabels !== 'undefined') ? projectLabels.find(l => l.id == obj.class) : null;
-                    const kpDef = label?.keypoints?.find(k => k.name === kp.name);
-                    return {
-                        id: kpDef?.id ?? 0,
-                        name: kp.name,
-                        point: kp.point
-                    };
-                })
+        objects: exported.annotations.map(obj => {
+            const result = {
+                class: parseInt(obj.class) || 0,
+                uuid: obj.uuid || null
             };
+
+            // bbox: {x, y, width, height} → [x_min, y_min, x_max, y_max]
+            if (obj.bbox) {
+                result.bbox = [
+                    obj.bbox.x,
+                    obj.bbox.y,
+                    obj.bbox.x + obj.bbox.width,
+                    obj.bbox.y + obj.bbox.height
+                ];
+            }
+
+            // segmentation: flat array from polygon.points or segmentation directly
+            if (obj.segmentation && obj.segmentation.length) {
+                result.segmentation = obj.segmentation;
+            } else if (obj.polygon && obj.polygon.points && obj.polygon.points.length) {
+                const flat = [];
+                obj.polygon.points.forEach(p => flat.push(p.x, p.y));
+                result.segmentation = flat;
+            }
+
+            // keypoints: resolve id from label definition, drop name
+            if (obj.keypoints && obj.keypoints.length) {
+                const label = (typeof projectLabels !== 'undefined')
+                    ? projectLabels.find(l => l.id == obj.class) : null;
+                result.keypoints = obj.keypoints.map(kp => {
+                    const kpDef = label?.keypoints?.find(k => k.name === kp.name);
+                    return { id: kpDef?.id ?? 0, point: kp.point };
+                });
+            }
+
+            return result;
         })
     };
 }
 
 async function updateAPIAnnotations(exported_annotations) {
     const imageId = document.querySelector('.zoomist-image img').dataset.imageId;
-    const response = await fetch('/project_update', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-            image_id: imageId,
-            value: exported_annotations,
-            type: 'update_annotations'
-        })
+    const response = await fetch(`/api/files/${imageId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ annotations: exported_annotations })
     });
 }
 
