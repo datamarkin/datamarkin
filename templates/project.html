@@ -26,11 +26,16 @@
             </nav>
         </div>
         <div class="titlebar-right">
+            <button id="models-btn" class="button is-small is-app">
+                Models
+            </button>
+            <button id="train-btn" class="button is-small is-app">
+                Train
+            </button>
             <button id="settings-btn" class="button is-small is-app">
-                <span class="is-hidden-label">Project settings</span>
                 <span class="icon is-small">
-                      {% include 'icons/adjustments-horizontal.svg' %}
-                    </span>
+                      {% include 'icons/cog-6-tooth.svg' %}
+                </span>
             </button>
         </div>
     </div>
@@ -115,31 +120,43 @@
                             </span>
                         </button>
                     </div>
-                    <button class="button is-app is-fullwidth is-justify-content-left settings-nav-btn is-active" data-panel="settings">
+                    <button class="button is-app is-fullwidth is-justify-content-left settings-nav-btn is-active"
+                            data-panel="settings">
+                        <span class="icon is-small">
+                            {% include 'icons/bars-3-bottom-left.svg' %}
+                        </span>
+                        <span class="has-text-weight-normal">General</span>
+                    </button>
+                    <button class="button is-app is-fullwidth is-justify-content-left settings-nav-btn"
+                            data-panel="configuration">
                         <span class="icon is-small">
                             {% include 'icons/cog-6-tooth.svg' %}
                         </span>
-                        <span class="has-text-weight-normal">Project Settings</span>
+                        <span class="has-text-weight-normal">Configuration</span>
                     </button>
-                    <button class="button is-app is-fullwidth is-justify-content-left settings-nav-btn" data-panel="labels">
+                    <button class="button is-app is-fullwidth is-justify-content-left settings-nav-btn"
+                            data-panel="labels">
                         <span class="icon is-small">
                             {% include 'icons/swatch.svg' %}
                         </span>
                         <span class="has-text-weight-normal">Labels</span>
                     </button>
-                    <button class="button is-app is-fullwidth is-justify-content-left settings-nav-btn" data-panel="preprocessing">
+                    <button class="button is-app is-fullwidth is-justify-content-left settings-nav-btn"
+                            data-panel="preprocessing">
                         <span class="icon is-small">
                             {% include 'icons/viewfinder-circle.svg' %}
                         </span>
                         <span class="has-text-weight-normal">Pre-processing</span>
                     </button>
-                    <button class="button is-app is-fullwidth is-justify-content-left settings-nav-btn" data-panel="augmentation">
+                    <button class="button is-app is-fullwidth is-justify-content-left settings-nav-btn"
+                            data-panel="augmentation">
                         <span class="icon is-small">
                             {% include 'icons/rectangle-group.svg' %}
                         </span>
                         <span class="has-text-weight-normal">Augmentation</span>
                     </button>
-                    <button class="button is-app is-fullwidth is-justify-content-left settings-nav-btn" data-panel="export">
+                    <button class="button is-app is-fullwidth is-justify-content-left settings-nav-btn"
+                            data-panel="export">
                         <span class="icon is-small">
                             {% include 'icons/arrow-top-right-on-square.svg' %}
                         </span>
@@ -150,7 +167,7 @@
 
                     <!-- Panel: Project Settings -->
                     <div class="settings-panel is-active" id="panel-settings">
-                        <p class="is-size-6 has-text-weight-semibold mb-4">Project Settings</p>
+                        <p class="is-size-6 has-text-weight-semibold mb-4">General</p>
                         <hr>
                         <div class="field">
                             <label class="label has-text-weight-normal">Project name</label>
@@ -161,12 +178,133 @@
                         <div class="field">
                             <label class="label has-text-weight-normal">Description</label>
                             <div class="control">
-                                <textarea class="textarea" placeholder="Add a description...">{{ project.description or '' }}</textarea>
+                                <textarea class="textarea"
+                                          placeholder="Add a description...">{{ project.description or '' }}</textarea>
                             </div>
                         </div>
                         <div class="field mt-4">
                             <button type="button" class="button is-small is-dark" id="save-settings-btn">Save</button>
                             <span class="ml-2 is-size-7 has-text-grey" id="save-settings-feedback"></span>
+                        </div>
+                    </div>
+
+                    <!-- Panel: Configuration -->
+                    <div class="settings-panel" id="panel-configuration">
+                        <p class="is-size-6 has-text-weight-semibold mb-1">Training Configuration</p>
+                        <hr>
+
+                        <div class="columns">
+                            <div class="column">
+                                <div class="field">
+                                    <label class="label has-text-weight-normal">Model size</label>
+                                    <div class="control">
+                                        <div class="select is-fullwidth">
+                                            <select id="cfg-model-size">
+                                                <option value="small">Small</option>
+                                                <option value="base">Base</option>
+                                                <option value="large">Large</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="column">
+                                <div class="field">
+                                    <label class="label has-text-weight-normal">Resolution</label>
+                                    <div class="control">
+                                        <div class="select is-fullwidth">
+                                            <select id="cfg-resolution">
+                                                <option>560</option>
+                                                <option>616</option>
+                                                <option>672</option>
+                                                <option>728</option>
+                                                <option>784</option>
+                                                <option>840</option>
+                                                <option>896</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <p class="help">Larger = better accuracy, more memory</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="columns">
+                            <div class="column">
+                                <div class="field">
+                                    <label class="label has-text-weight-normal">Epochs</label>
+                                    <div class="control">
+                                        <input class="input" type="number" id="cfg-epochs" min="1" value="20">
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="column">
+                                <div class="field">
+                                    <label class="label has-text-weight-normal">Batch size</label>
+                                    <div class="control">
+                                        <input class="input" type="number" id="cfg-batch-size" min="1" value="4">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="field">
+                            <label class="label has-text-weight-normal">Learning rate</label>
+                            <div class="control">
+                                <input class="input" type="number" id="cfg-lr" min="0.000001" step="0.00001"
+                                       value="0.0001">
+                            </div>
+                        </div>
+
+                        <div class="field">
+                            <label class="checkbox has-text-weight-normal">
+                                <input type="checkbox" id="cfg-early-stopping" checked>
+                                Early stopping
+                            </label>
+                        </div>
+                        <div class="field" id="cfg-patience-field">
+                            <label class="label has-text-weight-normal">Patience (epochs)</label>
+                            <div class="control">
+                                <input class="input" type="number" id="cfg-patience" min="1" value="3">
+                            </div>
+                        </div>
+
+                        <hr>
+                        <p class="has-text-weight-normal mb-3">Dataset Split</p>
+
+                        <!-- Color bar -->
+                        <div style="display:flex;height:10px;border-radius:4px;overflow:hidden;margin-bottom:6px">
+                            <div id="split-bar-train" style="background:#4a9d78;transition:width .1s"></div>
+                            <div id="split-bar-val" style="background:#e0a060;transition:width .1s"></div>
+                            <div id="split-bar-test" style="background:#a07ec0;transition:width .1s"></div>
+                        </div>
+                        <div style="display:flex;justify-content:space-between;margin-bottom:12px">
+                            <span class="is-size-7"><span style="color:#4a9d78">&#9632;</span> Train <strong
+                                    id="lbl-train">70%</strong></span>
+                            <span class="is-size-7"><span style="color:#e0a060">&#9632;</span> Val <strong id="lbl-val">20%</strong></span>
+                            <span class="is-size-7"><span style="color:#a07ec0">&#9632;</span> Test <strong
+                                    id="lbl-test">10%</strong></span>
+                        </div>
+
+                        <div class="field">
+                            <label class="label has-text-weight-normal is-small">Train %</label>
+                            <input type="range" id="slider-train" min="10" max="85" step="5" value="70"
+                                   style="width:100%">
+                        </div>
+                        <div class="field">
+                            <label class="label has-text-weight-normal is-small">Val %</label>
+                            <input type="range" id="slider-val" min="5" max="80" step="5" value="20" style="width:100%">
+                        </div>
+
+                        <div class="field mt-3">
+                            <button type="button" class="button is-small is-dark" id="apply-split-btn">Apply Split
+                            </button>
+                            <span class="ml-2 is-size-7 has-text-grey" id="apply-split-feedback"></span>
+                        </div>
+
+                        <div class="field mt-4">
+                            <button type="button" class="button is-small is-dark" id="save-config-btn">Save</button>
+                            <span class="ml-2 is-size-7 has-text-grey" id="save-config-feedback"></span>
                         </div>
                     </div>
 
@@ -176,52 +314,59 @@
                         <hr>
                         <div id="labels-list">
                             {% for label in project.labels %}
-                            <div class="label-row-wrapper mb-2">
-                                <div class="field has-addons mt-0 mb-0">
-                                    <div class="control is-expanded">
-                                        <input class="input label-name" type="text" placeholder="Label name" value="{{ label.name }}">
-                                    </div>
-                                    <div class="control">
-                                        <input class="label-color" type="color" value="#{{ label.color }}"
-                                               style="height:40px;width:50px;border:1px solid #dbdbdb;border-radius:4px;cursor:pointer;">
-                                    </div>
-                                    <div class="control">
-                                        <button type="button" class="button is-light"
-                                                onclick="this.closest('.label-row-wrapper').remove()">×</button>
-                                    </div>
-                                </div>
-                                <div class="keypoint-editor pl-4 pt-1" style="{% if label.keypoints is defined and label.keypoints %}{% else %}display:none{% endif %}">
-                                    <div class="keypoints-list">
-                                        {% if label.keypoints is defined and label.keypoints %}
-                                        {% for kp in label.keypoints %}
-                                        <div class="field has-addons mt-1 mb-0 keypoint-row">
-                                            <div class="control is-expanded">
-                                                <input class="input is-small" type="text" value="{{ kp.name }}" placeholder="Keypoint name">
-                                            </div>
-                                            <div class="control">
-                                                <input type="color" value="#{{ kp.color }}"
-                                                       style="height:32px;width:40px;border:1px solid #dbdbdb;border-radius:4px;cursor:pointer;">
-                                            </div>
-                                            <div class="control">
-                                                <button type="button" class="button is-small is-light"
-                                                        onclick="this.closest('.keypoint-row').remove()">×</button>
-                                            </div>
+                                <div class="label-row-wrapper mb-2">
+                                    <div class="field has-addons mt-0 mb-0">
+                                        <div class="control is-expanded">
+                                            <input class="input label-name" type="text" placeholder="Label name"
+                                                   value="{{ label.name }}">
                                         </div>
-                                        {% endfor %}
-                                        {% endif %}
+                                        <div class="control">
+                                            <input class="label-color" type="color" value="#{{ label.color }}"
+                                                   style="height:40px;width:50px;border:1px solid #dbdbdb;border-radius:4px;cursor:pointer;">
+                                        </div>
+                                        <div class="control">
+                                            <button type="button" class="button is-light"
+                                                    onclick="this.closest('.label-row-wrapper').remove()">×
+                                            </button>
+                                        </div>
                                     </div>
-                                    <button type="button" class="button is-small is-light mt-1" onclick="addKeypointToLabel(this)">
-                                        + Add keypoint
-                                    </button>
+                                    <div class="keypoint-editor pl-4 pt-1" style="
+                                            {% if label.keypoints is defined and label.keypoints %}{% else %}display:none{% endif %}">
+                                        <div class="keypoints-list">
+                                            {% if label.keypoints is defined and label.keypoints %}
+                                                {% for kp in label.keypoints %}
+                                                    <div class="field has-addons mt-1 mb-0 keypoint-row">
+                                                        <div class="control is-expanded">
+                                                            <input class="input is-small" type="text"
+                                                                   value="{{ kp.name }}" placeholder="Keypoint name">
+                                                        </div>
+                                                        <div class="control">
+                                                            <input type="color" value="#{{ kp.color }}"
+                                                                   style="height:32px;width:40px;border:1px solid #dbdbdb;border-radius:4px;cursor:pointer;">
+                                                        </div>
+                                                        <div class="control">
+                                                            <button type="button" class="button is-small is-light"
+                                                                    onclick="this.closest('.keypoint-row').remove()">×
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                {% endfor %}
+                                            {% endif %}
+                                        </div>
+                                        <button type="button" class="button is-small is-light mt-1"
+                                                onclick="addKeypointToLabel(this)">
+                                            + Add keypoint
+                                        </button>
+                                    </div>
                                 </div>
-                            </div>
                             {% endfor %}
                         </div>
                         <button type="button" class="button is-small is-light mt-2" onclick="addLabelRow()">
                             + Add label
                         </button>
                         <div class="mt-3">
-                            <button type="button" class="button is-small is-dark" id="save-labels-btn">Save labels</button>
+                            <button type="button" class="button is-small is-dark" id="save-labels-btn">Save labels
+                            </button>
                             <span class="ml-2 is-size-7 has-text-grey" id="save-labels-feedback"></span>
                         </div>
                     </div>
@@ -236,7 +381,8 @@
                             <div class="pipeline-stage-col">
                                 <p class="pipeline-col-label mb-2">Active Pipeline</p>
                                 <ul class="pipeline-list" id="pp-pipeline"></ul>
-                                <p class="pipeline-empty-hint" id="pp-hint">Click or drag transforms from the left to build your pipeline</p>
+                                <p class="pipeline-empty-hint" id="pp-hint">Click or drag transforms from the left to
+                                    build your pipeline</p>
                             </div>
                         </div>
                     </div>
@@ -251,7 +397,8 @@
                             <div class="pipeline-stage-col">
                                 <p class="pipeline-col-label mb-2">Active Pipeline</p>
                                 <ul class="pipeline-list" id="aug-pipeline"></ul>
-                                <p class="pipeline-empty-hint" id="aug-hint">Click or drag transforms from the left to build your augmentation</p>
+                                <p class="pipeline-empty-hint" id="aug-hint">Click or drag transforms from the left to
+                                    build your augmentation</p>
                             </div>
                         </div>
                     </div>
@@ -259,8 +406,37 @@
                     <!-- Panel: Export -->
                     <div class="settings-panel" id="panel-export">
                         <p class="is-size-6 has-text-weight-semibold mb-1">Export</p>
-                        <p class="help is-size-7">Export your dataset in various formats.</p>
-                        <p class="has-text-grey is-size-7 mt-5">Coming soon.</p>
+                        <hr>
+                        <div class="field mb-3">
+                            <label class="label is-small">Annotation Format</label>
+                            <div class="control">
+                                <div class="select is-small">
+                                    <select id="export-format-select">
+                                        <option value="coco">COCO</option>
+                                        <option value="coco-mmdetection" disabled>COCO-MMDetection (coming soon)</option>
+                                        <option value="createml" disabled>CreateML (coming soon)</option>
+                                        <option value="yolov12" disabled>YOLOv12 (coming soon)</option>
+                                        <option value="yolov26" disabled>YOLOv26 (coming soon)</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="is-flex is-align-items-flex-start is-justify-content-space-between">
+                            <div>
+                                <p class="has-text-weight-normal is-size-6">COCO Format</p>
+                                <p class="help mt-1">Exports annotated images and labels for train, valid, and test
+                                    splits as a ZIP archive.</p>
+                            </div>
+                            <a id="export-coco-btn"
+                               href="/api/projects/{{ project.id }}/export/coco"
+                               class="button is-small is-dark ml-4"
+                               style="flex-shrink:0">
+                                <span class="icon is-small">
+                                    {% include 'icons/arrow-top-right-on-square.svg' %}
+                                </span>
+                                <span>Download</span>
+                            </a>
+                        </div>
                     </div>
 
                 </div>
@@ -305,11 +481,15 @@
             });
 
             // --- Tab switching ---
-            modal.querySelectorAll('.settings-nav-btn').forEach(function(btn) {
-                btn.addEventListener('click', function() {
-                    modal.querySelectorAll('.settings-nav-btn').forEach(function(b) { b.classList.remove('is-active'); });
+            modal.querySelectorAll('.settings-nav-btn').forEach(function (btn) {
+                btn.addEventListener('click', function () {
+                    modal.querySelectorAll('.settings-nav-btn').forEach(function (b) {
+                        b.classList.remove('is-active');
+                    });
                     btn.classList.add('is-active');
-                    modal.querySelectorAll('.settings-panel').forEach(function(p) { p.classList.remove('is-active'); });
+                    modal.querySelectorAll('.settings-panel').forEach(function (p) {
+                        p.classList.remove('is-active');
+                    });
                     document.getElementById('panel-' + btn.dataset.panel).classList.add('is-active');
                 });
             });
@@ -334,31 +514,141 @@
             function collectAndSave(feedbackEl) {
                 var name = document.querySelector('#panel-settings input[type="text"]').value.trim();
                 var desc = document.querySelector('#panel-settings textarea').value;
-                if (!name) { feedbackEl.textContent = 'Name is required'; return; }
+                if (!name) {
+                    feedbackEl.textContent = 'Name is required';
+                    return;
+                }
                 var labels = [];
-                document.querySelectorAll('#labels-list .label-row-wrapper').forEach(function(row, i) {
+                document.querySelectorAll('#labels-list .label-row-wrapper').forEach(function (row, i) {
                     var labelName = row.querySelector('.label-name').value.trim();
                     var color = row.querySelector('.label-color').value.replace('#', '');
-                    if (labelName) labels.push({ id: i, name: labelName, color: color });
+                    if (labelName) labels.push({id: i, name: labelName, color: color});
                 });
                 fetch('/project/' + _projectId + '/settings', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ name: name, description: desc, labels: labels }),
-                }).then(function(r) { return r.json(); }).then(function(data) {
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({name: name, description: desc, labels: labels}),
+                }).then(function (r) {
+                    return r.json();
+                }).then(function (data) {
                     feedbackEl.textContent = data.ok ? 'Saved' : (data.error || 'Error');
-                    setTimeout(function() { feedbackEl.textContent = ''; }, 2500);
+                    setTimeout(function () {
+                        feedbackEl.textContent = '';
+                    }, 2500);
                 });
             }
-            document.getElementById('save-settings-btn').addEventListener('click', function() {
+
+            document.getElementById('save-settings-btn').addEventListener('click', function () {
                 collectAndSave(document.getElementById('save-settings-feedback'));
             });
-            document.getElementById('save-labels-btn').addEventListener('click', function() {
+            document.getElementById('save-labels-btn').addEventListener('click', function () {
                 collectAndSave(document.getElementById('save-labels-feedback'));
             });
 
             // --- File upload ---
             initFileUpload('{{ project.id }}');
+
+            // --- Training configuration ---
+            (function () {
+                var cfg = {{ project.configuration | tojson }};
+                if (cfg.model_size) document.getElementById('cfg-model-size').value = cfg.model_size;
+                if (cfg.resolution) document.getElementById('cfg-resolution').value = String(cfg.resolution);
+                if (cfg.epochs) document.getElementById('cfg-epochs').value = cfg.epochs;
+                if (cfg.batch_size) document.getElementById('cfg-batch-size').value = cfg.batch_size;
+                if (cfg.lr) document.getElementById('cfg-lr').value = cfg.lr;
+                if (cfg.early_stopping === false) document.getElementById('cfg-early-stopping').checked = false;
+                if (cfg.early_stopping_patience) document.getElementById('cfg-patience').value = cfg.early_stopping_patience;
+
+                function togglePatience() {
+                    document.getElementById('cfg-patience-field').style.display =
+                        document.getElementById('cfg-early-stopping').checked ? '' : 'none';
+                }
+
+                document.getElementById('cfg-early-stopping').addEventListener('change', togglePatience);
+                togglePatience();
+
+                // --- Split sliders ---
+                var sliderTrain = document.getElementById('slider-train');
+                var sliderVal = document.getElementById('slider-val');
+
+                function updateSplitUI() {
+                    var train = parseInt(sliderTrain.value);
+                    var maxVal = Math.max(5, 95 - train);
+                    sliderVal.max = maxVal;
+                    if (parseInt(sliderVal.value) > maxVal) sliderVal.value = maxVal;
+                    var val = parseInt(sliderVal.value);
+                    var test = 100 - train - val;
+                    if (test < 0) {
+                        sliderVal.value = 100 - train - 5;
+                        val = parseInt(sliderVal.value);
+                        test = 100 - train - val;
+                    }
+                    document.getElementById('lbl-train').textContent = train + '%';
+                    document.getElementById('lbl-val').textContent = val + '%';
+                    document.getElementById('lbl-test').textContent = test + '%';
+                    document.getElementById('split-bar-train').style.width = train + '%';
+                    document.getElementById('split-bar-val').style.width = val + '%';
+                    document.getElementById('split-bar-test').style.width = test + '%';
+                }
+
+                sliderTrain.addEventListener('input', updateSplitUI);
+                sliderVal.addEventListener('input', updateSplitUI);
+
+                // Restore saved split ratios
+                if (cfg.split_train) sliderTrain.value = Math.round(cfg.split_train * 100);
+                if (cfg.split_val) sliderVal.value = Math.round(cfg.split_val * 100);
+                updateSplitUI();
+
+                document.getElementById('apply-split-btn').addEventListener('click', function () {
+                    var fb = document.getElementById('apply-split-feedback');
+                    var train = parseInt(sliderTrain.value) / 100;
+                    var val = parseInt(sliderVal.value) / 100;
+                    var test = Math.round((1 - train - val) * 100) / 100;
+                    fetch('/project/' + _projectId + '/apply-split', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({train: train, val: val, test: test}),
+                    }).then(function (r) {
+                        return r.json();
+                    }).then(function (d) {
+                        if (d.ok) {
+                            fb.textContent = 'Applied — train:' + d.counts.train + ' val:' + d.counts.valid + ' test:' + d.counts.test;
+                        } else {
+                            fb.textContent = d.error || 'Error';
+                        }
+                        setTimeout(function () {
+                            fb.textContent = '';
+                        }, 3500);
+                    });
+                });
+
+                document.getElementById('save-config-btn').addEventListener('click', function () {
+                    var fb = document.getElementById('save-config-feedback');
+                    var payload = {
+                        model_size: document.getElementById('cfg-model-size').value,
+                        resolution: parseInt(document.getElementById('cfg-resolution').value),
+                        epochs: parseInt(document.getElementById('cfg-epochs').value),
+                        batch_size: parseInt(document.getElementById('cfg-batch-size').value),
+                        lr: parseFloat(document.getElementById('cfg-lr').value),
+                        early_stopping: document.getElementById('cfg-early-stopping').checked,
+                        early_stopping_patience: parseInt(document.getElementById('cfg-patience').value),
+                        split_train: parseInt(sliderTrain.value) / 100,
+                        split_val: parseInt(sliderVal.value) / 100,
+                    };
+                    fetch('/project/' + _projectId + '/configuration', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify(payload),
+                    }).then(function (r) {
+                        return r.json();
+                    }).then(function (d) {
+                        fb.textContent = d.ok ? 'Saved' : (d.error || 'Error');
+                        setTimeout(function () {
+                            fb.textContent = '';
+                        }, 2500);
+                    });
+                });
+            })();
         })();
     </script>
 {% endblock %}

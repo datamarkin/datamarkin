@@ -1,3 +1,4 @@
+import json
 import os
 from pathlib import Path
 
@@ -7,7 +8,11 @@ from PIL import Image
 from config import file_path as get_file_path, ALLOWED_EXTENSIONS
 from db import new_id
 from db_models import Project, File
-from queries import get_all_projects, get_project_by_id, get_project_files, get_file_by_id, create_project, insert_file, update_project_info, update_project_pipeline
+from queries import (
+    get_all_projects, get_project_by_id, get_project_files, get_file_by_id,
+    create_project, insert_file, update_project_info, update_project_pipeline,
+    update_project_configuration, assign_file_splits,
+)
 
 
 def projects_page_route():
@@ -87,6 +92,28 @@ def project_settings_route(project_id: str):
     labels = data.get('labels', [])
     update_project_info(project_id, name, description, labels)
     return jsonify({'ok': True, 'name': name})
+
+
+def project_configuration_route(project_id: str):
+    if not get_project_by_id(project_id):
+        abort(404)
+    data = request.get_json(force=True)
+    update_project_configuration(project_id, json.dumps(data))
+    return jsonify({'ok': True})
+
+
+def project_apply_split_route(project_id: str):
+    if not get_project_by_id(project_id):
+        abort(404)
+    data = request.get_json(force=True)
+    train = float(data.get("train", 0.7))
+    val   = float(data.get("val",   0.2))
+    test  = float(data.get("test",  0.1))
+    total = train + val + test
+    if abs(total - 1.0) > 0.01:
+        return jsonify({"error": f"Ratios must sum to 1.0 (got {total:.2f})"}), 400
+    counts = assign_file_splits(project_id, train, val, test)
+    return jsonify({"ok": True, "counts": counts})
 
 
 def project_image_page_route(project_id: str, file_id: str):
