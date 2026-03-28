@@ -3,3 +3,4 @@ datamarkin.com/*
 .DS_Store
 __pycache__
 /experiments/rf-detr/output
+/output
