@@ -303,14 +303,24 @@ def export_coco(project_id):
                     y_abs = y * f["height"]
                     w_abs = w * f["width"]
                     h_abs = h * f["height"]
-                    coco_annotations.append({
+                    coco_ann = {
                         "id": ann_id,
                         "image_id": img_idx,
                         "category_id": obj["class"] + 1,
                         "bbox": [x_abs, y_abs, w_abs, h_abs],
                         "area": w_abs * h_abs,
                         "iscrowd": 0,
-                    })
+                    }
+                    seg_norm = obj.get("segmentation")
+                    if seg_norm and len(seg_norm) >= 6:
+                        abs_seg = []
+                        for i in range(0, len(seg_norm) - 1, 2):
+                            abs_seg.append(seg_norm[i] * f["width"])
+                            abs_seg.append(seg_norm[i + 1] * f["height"])
+                        coco_ann["segmentation"] = [abs_seg]
+                    else:
+                        coco_ann["segmentation"] = []
+                    coco_annotations.append(coco_ann)
                     ann_id += 1
 
             zf.writestr(
