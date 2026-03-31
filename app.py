@@ -15,6 +15,8 @@ from routes.files_route import files_route
 from routes.api import api
 from routes.efficienttam_api import efficienttam_api
 from routes.training_route import training_api
+from routes.predict_route import predict_api
+from queries import get_done_trainings
 from config import APP_NAME, APP_VERSION, ALLOWED_EXTENSIONS
 
 
@@ -35,6 +37,8 @@ def get_active_tab():
         return "settings"
     elif path.startswith("/project/"):
         return "project_detail"
+    elif path == "/inference":
+        return "inference"
     return "projects"
 
 
@@ -95,6 +99,7 @@ def create_app() -> Flask:
     app.register_blueprint(api)
     app.register_blueprint(efficienttam_api)
     app.register_blueprint(training_api)
+    app.register_blueprint(predict_api)
 
     @app.route("/")
     @app.route("/projects")
@@ -141,6 +146,16 @@ def create_app() -> Flask:
     @app.route("/model-zoo")
     def model_zoo():
         return render_template("model_zoo.html")
+
+    @app.route("/inference")
+    def inference_page():
+        import json
+        trainings = []
+        for t in get_done_trainings():
+            t["config"] = json.loads(t.get("config") or "{}")
+            t["metrics"] = json.loads(t.get("metrics") or "{}")
+            trainings.append(t)
+        return render_template("inference.html", trainings=trainings)
 
     @app.route("/agents")
     def agents():

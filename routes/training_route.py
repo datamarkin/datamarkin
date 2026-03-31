@@ -61,6 +61,11 @@ def _prepare_coco_dataset(training_id: str, project_id: str, db) -> str:
         s = row["split"] if row["split"] in splits else "train"
         splits[s].append(row)
 
+    if not splits["valid"] and splits["train"]:
+        n_valid = max(1, len(splits["train"]) // 5)  # 20%
+        splits["valid"] = splits["train"][-n_valid:]
+        splits["train"] = splits["train"][:-n_valid]
+
     for split_name, files in splits.items():
         if not files:
             continue
@@ -97,14 +102,24 @@ def _prepare_coco_dataset(training_id: str, project_id: str, db) -> str:
                 w_abs = w * f["width"]
                 h_abs = h * f["height"]
 
-                coco_annotations.append({
+                coco_ann = {
                     "id": ann_id,
                     "image_id": img_idx,
                     "category_id": obj["class"] + 1,
                     "bbox": [x_abs, y_abs, w_abs, h_abs],
                     "area": w_abs * h_abs,
                     "iscrowd": 0,
-                })
+                }
+                seg_norm = obj.get("segmentation")
+                if seg_norm and len(seg_norm) >= 6:
+                    abs_seg = []
+                    for i in range(0, len(seg_norm) - 1, 2):
+                        abs_seg.append(seg_norm[i] * f["width"])
+                        abs_seg.append(seg_norm[i + 1] * f["height"])
+                    coco_ann["segmentation"] = [abs_seg]
+                else:
+                    coco_ann["segmentation"] = []
+                coco_annotations.append(coco_ann)
                 ann_id += 1
 
         coco_json = {
@@ -123,10 +138,15 @@ def _prepare_coco_dataset(training_id: str, project_id: str, db) -> str:
 # ── Task dispatcher ───────────────────────────────────────────────────────────
 
 def _launch_worker(training_id: str, db) -> None:
+    log_path = TRAINING_JOBS_DIR / training_id / "worker.log"
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    log_file = open(log_path, "w")
     proc = subprocess.Popen(
         [sys.executable, str(APP_DIR / "scripts" / "training_worker.py"),
          "--training-id", training_id],
         cwd=str(APP_DIR),
+        stdout=log_file,
+        stderr=log_file,
     )
     db.execute(
         "UPDATE trainings SET status='running', pid=?, updated_at=? WHERE id=?",
@@ -136,8 +156,27 @@ def _launch_worker(training_id: str, db) -> None:
 
 
 def _maybe_dispatch(db) -> None:
-    if db.execute("SELECT id FROM trainings WHERE status='running'").fetchone():
-        return
+    running = db.execute(
+        "SELECT id, pid FROM trainings WHERE status='running'"
+    ).fetchone()
+    if running:
+        pid = running["pid"]
+        alive = False
+        if pid:
+            try:
+                os.kill(pid, 0)  # signal 0 = existence check, no actual signal
+                alive = True
+            except (ProcessLookupError, PermissionError):
+                alive = False
+        if alive:
+            return
+        # Process is dead but status is still 'running' — clean up
+        db.execute(
+            "UPDATE trainings SET status='failed', error='Worker process died unexpectedly', updated_at=? WHERE id=?",
+            (now(), running["id"]),
+        )
+        db.commit()
+
     nxt = db.execute(
         "SELECT id FROM trainings WHERE status='pending' ORDER BY created_at LIMIT 1"
     ).fetchone()
@@ -173,6 +212,7 @@ def training_start():
         "augmentation":  json.loads(project["augmentation"]  or "[]"),
         "preprocessing": json.loads(project["preprocessing"] or "[]"),
         "labels":        json.loads(project["labels"]        or "[]"),
+        "project_type":  project["type"],
     }
 
     db = get_db()
@@ -209,6 +249,28 @@ def training_status(training_id):
         db.close()
 
     return jsonify(training)
+
+
+@training_api.route("/api/training/<training_id>/live", methods=["GET"])
+def training_live(training_id):
+    path = TRAINING_JOBS_DIR / training_id / "live.json"
+    if not path.exists():
+        return jsonify({}), 200
+    try:
+        return jsonify(json.loads(path.read_text()))
+    except Exception:
+        return jsonify({}), 200
+
+
+@training_api.route("/api/training/<training_id>/log", methods=["GET"])
+def training_log(training_id):
+    path = TRAINING_JOBS_DIR / training_id / "worker.log"
+    if not path.exists():
+        return "", 200
+    try:
+        return path.read_text(), 200, {"Content-Type": "text/plain"}
+    except Exception:
+        return "", 200
 
 
 @training_api.route("/api/training/<training_id>/stop", methods=["POST"])

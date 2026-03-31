@@ -270,6 +270,15 @@ def update_training_status(training_id: str, status: str, error: str | None = No
     conn.close()
 
 
+def get_done_trainings() -> list[dict]:
+    conn = get_db()
+    rows = conn.execute(
+        "SELECT * FROM trainings WHERE status = 'done' ORDER BY created_at DESC"
+    ).fetchall()
+    conn.close()
+    return [dict(row) for row in rows]
+
+
 def get_project_trainings(project_id: str) -> list[dict]:
     conn = get_db()
     rows = conn.execute(

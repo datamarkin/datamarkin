@@ -11,6 +11,7 @@ import shutil
 import signal
 import sqlite3
 import sys
+import time
 import traceback
 from datetime import datetime, timezone
 from pathlib import Path
@@ -20,7 +21,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
 
-from config import DB_PATH, MODELS_DIR
+from config import DB_PATH, MODELS_DIR, TRAINING_JOBS_DIR
 
 
 def _db() -> sqlite3.Connection:
@@ -55,6 +56,16 @@ def _write_progress(training_id: str, progress: dict) -> None:
     conn.close()
 
 
+def _write_metrics(training_id: str, metrics: dict) -> None:
+    conn = _db()
+    conn.execute(
+        "UPDATE trainings SET metrics=?, updated_at=? WHERE id=?",
+        (json.dumps(metrics), _now(), training_id),
+    )
+    conn.commit()
+    conn.close()
+
+
 def _save_best_checkpoint(training_id: str, output_dir: str) -> str:
     """Copy best checkpoint from rfdetr output_dir to MODELS_DIR/<training_id>.pth."""
     MODELS_DIR.mkdir(exist_ok=True)
@@ -69,84 +80,155 @@ def _save_best_checkpoint(training_id: str, output_dir: str) -> str:
 
 
 def main(training_id: str) -> None:
-    import torch
+    # Redirect all output to a log file immediately so errors are visible
+    job_dir = TRAINING_JOBS_DIR / training_id
+    job_dir.mkdir(parents=True, exist_ok=True)
+    log_path = job_dir / "worker.log"
+    log_file = open(log_path, "w", buffering=1)
+    sys.stdout = log_file
+    sys.stderr = log_file
 
-    # Read config from DB
-    conn = _db()
-    row = conn.execute("SELECT config FROM trainings WHERE id=?", (training_id,)).fetchone()
-    conn.close()
-    if not row:
-        print(f"[worker] Training {training_id} not found in DB", flush=True)
+    try:
+        import torch
+        from pytorch_lightning import Callback
+        from rfdetr.training import RFDETRModelModule, RFDETRDataModule, build_trainer
+
+        # Read config from DB
+        conn = _db()
+        row = conn.execute("SELECT config FROM trainings WHERE id=?", (training_id,)).fetchone()
+        conn.close()
+        if not row:
+            print(f"[worker] Training {training_id} not found in DB", flush=True)
+            sys.exit(1)
+
+        cfg = json.loads(row["config"])
+
+        model_size          = cfg.get("model_size", "base")
+        epochs              = cfg.get("epochs", 20)
+        batch_size          = cfg.get("batch_size", 4)
+        resolution          = cfg.get("resolution", 560)
+        lr                  = cfg.get("lr", 1e-4)
+        early_stopping      = cfg.get("early_stopping", True)
+        early_stopping_pat  = cfg.get("early_stopping_patience", 3)
+        dataset_dir         = cfg["dataset_dir"]
+        project_type        = cfg.get("project_type", "detection")
+
+        # Select device and matching PTL accelerator
+        if torch.backends.mps.is_available():
+            device, accelerator = "mps", "mps"
+        elif torch.cuda.is_available():
+            device, accelerator = "cuda", "gpu"
+        else:
+            device, accelerator = "cpu", "cpu"
+
+        # Import rfdetr model class
+        from rfdetr import RFDETRBase, RFDETRLarge, RFDETRSmall
+        from rfdetr import RFDETRSegSmall, RFDETRSegMedium, RFDETRSegLarge
+
+        if project_type == "segmentation":
+            # "base" in our config → RFDETRSegMedium (rfdetr has no SegBase)
+            MODEL_CLASSES = {"small": RFDETRSegSmall, "base": RFDETRSegMedium, "large": RFDETRSegLarge}
+            default_cls = RFDETRSegMedium
+        else:
+            MODEL_CLASSES = {"small": RFDETRSmall, "base": RFDETRBase, "large": RFDETRLarge}
+            default_cls = RFDETRBase
+        ModelClass = MODEL_CLASSES.get(model_size, default_cls)
+
+        output_dir = str(MODELS_DIR / training_id)
+        live_path = job_dir / "live.json"
+
+        stopped = {"flag": False}
+
+        def _on_sigterm(signum, frame):
+            stopped["flag"] = True
+
+        signal.signal(signal.SIGTERM, _on_sigterm)
+
+        model = ModelClass(resolution=resolution)
+        history = []
+
+    except Exception:
+        error_msg = traceback.format_exc()
+        print(f"[worker] Startup failed:\n{error_msg}", flush=True)
+        _set_status(training_id, "failed", error=error_msg)
         sys.exit(1)
 
-    cfg = json.loads(row["config"])
+    class WorkerMetricsCallback(Callback):
+        def __init__(self):
+            self._last_live = 0.0
 
-    model_size          = cfg.get("model_size", "base")
-    epochs              = cfg.get("epochs", 20)
-    batch_size          = cfg.get("batch_size", 4)
-    resolution          = cfg.get("resolution", 560)
-    lr                  = cfg.get("lr", 1e-4)
-    early_stopping      = cfg.get("early_stopping", True)
-    early_stopping_pat  = cfg.get("early_stopping_patience", 3)
-    dataset_dir         = cfg["dataset_dir"]
+        def on_train_batch_end(self, trainer, pl_module, outputs, batch, batch_idx):
+            now = time.time()
+            if now - self._last_live < 5:
+                return
+            self._last_live = now
 
-    # Select device
-    if torch.backends.mps.is_available():
-        device = "mps"
-    elif torch.cuda.is_available():
-        device = "cuda"
-    else:
-        device = "cpu"
+            # Try logged metric first (unscaled), fallback to scaled output
+            loss_val = trainer.callback_metrics.get("train/loss")
+            if loss_val is None and isinstance(outputs, torch.Tensor):
+                loss_val = float(outputs) * max(1, trainer.accumulate_grad_batches)
+            if loss_val is None:
+                return
 
-    # Import rfdetr model class
-    from rfdetr import RFDETRBase, RFDETRLarge, RFDETRSmall
-    MODEL_CLASSES = {
-        "small": RFDETRSmall,
-        "base":  RFDETRBase,
-        "large": RFDETRLarge,
-    }
-    ModelClass = MODEL_CLASSES.get(model_size, RFDETRBase)
+            try:
+                live_path.write_text(json.dumps({
+                    "step":         trainer.global_step,
+                    "epoch":        trainer.current_epoch + 1,
+                    "total_epochs": epochs,
+                    "batch_loss":   float(loss_val),
+                    "timestamp":    now,
+                }))
+            except Exception:
+                pass
 
-    output_dir = str(MODELS_DIR / training_id)
+        def on_validation_epoch_end(self, trainer, pl_module):
+            if stopped["flag"]:
+                trainer.should_stop = True
+                return
 
-    stopped = {"flag": False}
+            m = {
+                k: (v.item() if hasattr(v, "item") else v)
+                for k, v in trainer.callback_metrics.items()
+            }
 
-    def _on_sigterm(signum, frame):
-        stopped["flag"] = True
+            # Map RF-DETR metric keys to the app's expected keys
+            if project_type == "segmentation":
+                map_val     = m.get("val/segm_mAP_50")
+                map_50_95   = m.get("val/segm_mAP_50_95")
+                ema_map_val = m.get("val/ema_segm_mAP_50")
+            else:
+                map_val     = m.get("val/mAP_50")
+                map_50_95   = m.get("val/mAP_50_95")
+                ema_map_val = m.get("val/ema_mAP_50")
 
-    signal.signal(signal.SIGTERM, _on_sigterm)
+            epoch_data = {
+                "loss":            m.get("train/loss_epoch", m.get("train/loss")),
+                "map":             map_val,
+                "map_50_95":       map_50_95,
+                "map_75":          m.get("val/mAP_75"),
+                "recall":          m.get("val/mAR"),
+                "f1":              m.get("val/F1"),
+                "precision":       m.get("val/precision"),
+                "ema_map_50":      ema_map_val,
+                "segm_map_50":     m.get("val/segm_mAP_50"),
+                "segm_map_50_95":  m.get("val/segm_mAP_50_95"),
+            }
+            # Strip keys with no value (metrics not yet available this epoch)
+            epoch_data = {k: v for k, v in epoch_data.items() if v is not None}
 
-    model = ModelClass(resolution=resolution)
-    history = []
+            history.append(epoch_data)
+            progress = {"epoch": len(history), "total_epochs": epochs, **epoch_data}
+            _write_progress(training_id, progress)
+            _write_metrics(training_id, {"history": history})
+            print(f"[worker] epoch {len(history)}/{epochs}: {epoch_data}", flush=True)
 
-    def on_epoch_end(data):
-        if stopped["flag"]:
-            return
-
-        epoch_data = {
-            k: (v.item() if isinstance(v, torch.Tensor) else v)
-            for k, v in data.items()
-        } if isinstance(data, dict) else {"raw": data}
-
-        history.append(epoch_data)
-
-        progress = {
-            "epoch":        len(history),
-            "total_epochs": epochs,
-            **{k: v for k, v in epoch_data.items() if k != "epoch"},
-        }
-        _write_progress(training_id, progress)
-        print(f"[worker] epoch {len(history)}/{epochs}: {epoch_data}", flush=True)
-
-        if device == "mps":
-            torch.mps.empty_cache()
-
-    model.callbacks["on_fit_epoch_end"].append(on_epoch_end)
+            if device == "mps":
+                torch.mps.empty_cache()
 
     _set_status(training_id, "running")
 
     try:
-        model.train(
+        config = model.get_train_config(
             dataset_dir=dataset_dir,
             output_dir=output_dir,
             epochs=epochs,
@@ -158,8 +240,15 @@ def main(training_id: str) -> None:
             use_ema=True,
             early_stopping=early_stopping,
             early_stopping_patience=early_stopping_pat,
-            device=device,
         )
+        module     = RFDETRModelModule(model.model_config, config)
+        datamodule = RFDETRDataModule(model.model_config, config)
+        trainer    = build_trainer(config, model.model_config, accelerator=accelerator)
+        trainer.callbacks.append(WorkerMetricsCallback())
+        trainer.fit(module, datamodule)
+
+        # Sync trained weights back so predict() / export() work
+        model.model.model = module.model
 
         if stopped["flag"]:
             _save_best_checkpoint(training_id, output_dir)
@@ -168,7 +257,7 @@ def main(training_id: str) -> None:
 
         model_path = _save_best_checkpoint(training_id, output_dir)
 
-        best_map = max((e.get("map", 0) for e in history), default=None)
+        best_map   = max((e.get("map", 0) for e in history), default=None)
         final_loss = history[-1].get("loss") if history else None
         metrics = {
             "best_mAP":   best_map,

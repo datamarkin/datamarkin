@@ -1,0 +1,316 @@
+{% extends "base.html" %}
+
+{% block title %}Inference — Datamarkin{% endblock %}
+
+{% block content %}
+<div class="inference-page">
+    <div class="inference-controls">
+        <h2 class="inference-heading">Inference</h2>
+
+        <div class="field">
+            <label class="label is-small">Model</label>
+            {% if trainings %}
+            <div class="control">
+                <div class="select is-fullwidth is-small">
+                    <select id="model-select">
+                        {% for t in trainings %}
+                        {% set cfg = t.config %}
+                        {% set metrics = t.metrics %}
+                        {% set map_val = metrics.best_mAP %}
+                        <option value="{{ t.id }}">
+                            {{ cfg.project_type | default('detection') }} ·
+                            {{ cfg.model_size | default('base') }} ·
+                            {{ cfg.resolution | default(560) }}px
+                            {% if map_val %} · mAP {{ "%.2f"|format(map_val) }}{% endif %}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+            {% else %}
+            <p class="help">No trained models yet. Train a model first.</p>
+            {% endif %}
+        </div>
+
+        <div class="field">
+            <label class="label is-small">Threshold: <span id="threshold-display">0.50</span></label>
+            <div class="control">
+                <input class="slider is-fullwidth is-small" id="threshold-range"
+                       type="range" min="0.05" max="0.95" step="0.05" value="0.50">
+            </div>
+        </div>
+
+        <div class="field">
+            <label class="label is-small">Image</label>
+            <div class="drop-zone" id="drop-zone">
+                <span class="drop-zone-icon">+</span>
+                <span class="drop-zone-text" id="drop-zone-text">Drop image here or click to browse</span>
+                <input type="file" id="file-input" accept="image/*" style="display:none">
+            </div>
+        </div>
+
+        <div class="field">
+            <div class="control">
+                <button class="button is-dark is-small is-fullwidth" id="run-btn"
+                        {% if not trainings %}disabled{% endif %}>
+                    Run Inference
+                </button>
+            </div>
+        </div>
+
+        <p class="help is-danger is-hidden" id="error-msg"></p>
+    </div>
+
+    <div class="inference-results">
+        <div class="inference-preview-wrap" id="preview-wrap" style="display:none">
+            <div style="position:relative; display:inline-block; max-width:100%;">
+                <img id="preview-img" src="" alt="Preview" style="display:block; max-width:100%; height:auto;">
+                <canvas id="overlay-canvas" style="position:absolute; top:0; left:0; pointer-events:none;"></canvas>
+            </div>
+        </div>
+
+        <div id="empty-state" class="inference-empty-state">
+            <p class="has-text-grey-light">Drop an image and run inference to see results</p>
+        </div>
+
+        <div id="results-section" style="display:none; margin-top: 1rem;">
+            <p class="is-size-7 has-text-grey mb-2" id="results-summary"></p>
+            <table class="table is-fullwidth is-narrow is-hoverable is-size-7">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Class</th>
+                        <th>Confidence</th>
+                        <th>BBox (x, y, w, h)</th>
+                    </tr>
+                </thead>
+                <tbody id="results-tbody"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<style>
+.inference-page {
+    display: flex;
+    height: 100%;
+    gap: 0;
+}
+.inference-controls {
+    width: 220px;
+    min-width: 220px;
+    padding: 1.25rem 1rem;
+    border-right: 1px solid #e8dfc8;
+    background: #faf8f4;
+    overflow-y: auto;
+}
+.inference-heading {
+    font-family: 'Libre Baskerville', serif;
+    font-size: 1rem;
+    font-weight: 700;
+    margin-bottom: 1.25rem;
+    color: #2a2a2a;
+}
+.inference-results {
+    flex: 1;
+    padding: 1.25rem;
+    overflow-y: auto;
+    background: #fffdf7;
+}
+.inference-preview-wrap {
+    margin-bottom: 1rem;
+}
+.inference-empty-state {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 200px;
+    border: 1px dashed #ddd;
+    border-radius: 6px;
+}
+.slider {
+    -webkit-appearance: none;
+    width: 100%;
+    height: 4px;
+    background: #ddd;
+    border-radius: 2px;
+    outline: none;
+    cursor: pointer;
+}
+.slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: #2a2a2a;
+    cursor: pointer;
+}
+</style>
+
+<script>
+(function () {
+    const dropZone    = document.getElementById('drop-zone');
+    const fileInput   = document.getElementById('file-input');
+    const previewImg  = document.getElementById('preview-img');
+    const previewWrap = document.getElementById('preview-wrap');
+    const canvas      = document.getElementById('overlay-canvas');
+    const ctx         = canvas.getContext('2d');
+    const runBtn      = document.getElementById('run-btn');
+    const modelSelect = document.getElementById('model-select');
+    const threshRange = document.getElementById('threshold-range');
+    const threshDisp  = document.getElementById('threshold-display');
+    const errorMsg    = document.getElementById('error-msg');
+    const emptyState  = document.getElementById('empty-state');
+    const resultsSection = document.getElementById('results-section');
+    const resultsTbody   = document.getElementById('results-tbody');
+    const resultsSummary = document.getElementById('results-summary');
+
+    let selectedFile = null;
+
+    // Threshold display
+    threshRange.addEventListener('input', () => {
+        threshDisp.textContent = parseFloat(threshRange.value).toFixed(2);
+    });
+
+    // Drop zone
+    dropZone.addEventListener('click', () => fileInput.click());
+    dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('is-dragover'); });
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('is-dragover'));
+    dropZone.addEventListener('drop', e => {
+        e.preventDefault();
+        dropZone.classList.remove('is-dragover');
+        const file = e.dataTransfer.files[0];
+        if (file && file.type.startsWith('image/')) loadFile(file);
+    });
+    fileInput.addEventListener('change', () => {
+        if (fileInput.files[0]) loadFile(fileInput.files[0]);
+    });
+
+    function loadFile(file) {
+        selectedFile = file;
+        document.getElementById('drop-zone-text').textContent = file.name;
+        const reader = new FileReader();
+        reader.onload = e => {
+            previewImg.src = e.target.result;
+            previewImg.onload = () => {
+                canvas.width  = previewImg.offsetWidth;
+                canvas.height = previewImg.offsetHeight;
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+            };
+            emptyState.style.display = 'none';
+            previewWrap.style.display = '';
+            resultsSection.style.display = 'none';
+            resultsTbody.innerHTML = '';
+        };
+        reader.readAsDataURL(file);
+    }
+
+    // Color from class name
+    function classColor(name) {
+        let hash = 0;
+        for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
+        const hue = Math.abs(hash) % 360;
+        return `hsl(${hue}, 70%, 50%)`;
+    }
+
+    // Draw detections on canvas
+    function drawDetections(objects) {
+        canvas.width  = previewImg.offsetWidth;
+        canvas.height = previewImg.offsetHeight;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        const W = canvas.width;
+        const H = canvas.height;
+
+        objects.forEach(obj => {
+            const color = classColor(obj.class_name);
+            const [nx, ny, nw, nh] = obj.bbox;
+            const px = nx * W, py = ny * H, pw = nw * W, ph = nh * H;
+
+            if (obj.segmentation && obj.segmentation.length >= 4) {
+                ctx.beginPath();
+                ctx.moveTo(obj.segmentation[0] * W, obj.segmentation[1] * H);
+                for (let i = 2; i < obj.segmentation.length; i += 2) {
+                    ctx.lineTo(obj.segmentation[i] * W, obj.segmentation[i+1] * H);
+                }
+                ctx.closePath();
+                ctx.strokeStyle = color;
+                ctx.lineWidth = 2;
+                ctx.stroke();
+                ctx.fillStyle = color.replace('50%)', '50%, 0.15)').replace('hsl(', 'hsla(');
+                ctx.fill();
+            } else {
+                ctx.strokeStyle = color;
+                ctx.lineWidth = 2;
+                ctx.strokeRect(px, py, pw, ph);
+            }
+
+            // Label
+            const label = `${obj.class_name} ${Math.round((obj.confidence || 0) * 100)}%`;
+            ctx.font = 'bold 11px system-ui';
+            const tw = ctx.measureText(label).width;
+            ctx.fillStyle = color;
+            ctx.fillRect(px, py - 16, tw + 8, 16);
+            ctx.fillStyle = '#fff';
+            ctx.fillText(label, px + 4, py - 4);
+        });
+    }
+
+    // Populate results table
+    function showResults(objects) {
+        resultsTbody.innerHTML = '';
+        objects.forEach((obj, i) => {
+            const color = classColor(obj.class_name);
+            const [x, y, w, h] = obj.bbox.map(v => v.toFixed(3));
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td>${i + 1}</td>
+                <td><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${color};margin-right:5px;"></span>${obj.class_name}</td>
+                <td>${obj.confidence ? Math.round(obj.confidence * 100) + '%' : '—'}</td>
+                <td style="font-family:monospace">${x}, ${y}, ${w}, ${h}</td>
+            `;
+            resultsTbody.appendChild(row);
+        });
+        resultsSummary.textContent = `${objects.length} detection${objects.length !== 1 ? 's' : ''}`;
+        resultsSection.style.display = '';
+    }
+
+    // Run inference
+    runBtn.addEventListener('click', async () => {
+        if (!selectedFile) { showError('Please drop an image first.'); return; }
+        if (!modelSelect) return;
+
+        hideError();
+        runBtn.classList.add('is-loading');
+        runBtn.disabled = true;
+
+        const formData = new FormData();
+        formData.append('file', selectedFile);
+        formData.append('training_id', modelSelect.value);
+        formData.append('threshold', threshRange.value);
+
+        try {
+            const resp = await fetch('/api/predict/run', { method: 'POST', body: formData });
+            const data = await resp.json();
+            if (!resp.ok) { showError(data.error || 'Inference failed'); return; }
+            drawDetections(data.objects);
+            showResults(data.objects);
+        } catch (e) {
+            showError('Request failed: ' + e.message);
+        } finally {
+            runBtn.classList.remove('is-loading');
+            runBtn.disabled = false;
+        }
+    });
+
+    function showError(msg) {
+        errorMsg.textContent = msg;
+        errorMsg.classList.remove('is-hidden');
+    }
+    function hideError() {
+        errorMsg.textContent = '';
+        errorMsg.classList.add('is-hidden');
+    }
+})();
+</script>
+{% endblock %}
