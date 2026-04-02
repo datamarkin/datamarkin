@@ -18,7 +18,7 @@ predict_api = Blueprint("predict_api", __name__)
 model_manager = ModelManager()
 
 
-def _mask_to_norm_polygon(mask: np.ndarray, img_w: int, img_h: int):
+def mask_to_norm_polygon(mask: np.ndarray, img_w: int, img_h: int):
     """Convert a boolean H×W mask to a normalized flat polygon [x1,y1,x2,y2,...].
     Returns None if no valid contour is found."""
     uint8 = (mask.astype(np.uint8)) * 255
@@ -38,8 +38,8 @@ def _mask_to_norm_polygon(mask: np.ndarray, img_w: int, img_h: int):
     return poly
 
 
-def _detections_to_objects(detections, labels, img_w: int, img_h: int,
-                            class_name_key: bool = False) -> list:
+def detections_to_objects(detections, labels, img_w: int, img_h: int,
+                           class_name_key: bool = False) -> list:
     """Convert pixelflow Detections to normalized app objects.
 
     If class_name_key is True, objects use 'class_name' (for inference display).
@@ -74,7 +74,7 @@ def _detections_to_objects(detections, labels, img_w: int, img_h: int,
         # Handle segmentation masks (det.masks is a list of boolean arrays)
         if det.masks:
             for mask in det.masks:
-                poly = _mask_to_norm_polygon(mask, img_w, img_h)
+                poly = mask_to_norm_polygon(mask, img_w, img_h)
                 if poly:
                     obj["segmentation"] = poly
                     break  # Use first valid polygon
@@ -132,7 +132,7 @@ def predict_run():
     except Exception as e:
         return jsonify({"error": f"Inference failed: {e}"}), 500
 
-    objects = _detections_to_objects(detections, labels, img_w, img_h, class_name_key=True)
+    objects = detections_to_objects(detections, labels, img_w, img_h, class_name_key=True)
     return jsonify({"objects": objects, "image_width": img_w, "image_height": img_h})
 
 
@@ -188,5 +188,5 @@ def predict():
     except Exception as e:
         return jsonify({"error": f"Inference failed: {e}"}), 500
 
-    objects = _detections_to_objects(detections, labels, img_w, img_h)
+    objects = detections_to_objects(detections, labels, img_w, img_h)
     return jsonify({"objects": objects})
