@@ -16,6 +16,7 @@ from routes.api import api
 from routes.efficienttam_api import efficienttam_api
 from routes.training_route import training_api
 from routes.predict_route import predict_api
+from routes.falcon_perception_api import falcon_perception_api
 from queries import get_done_trainings, list_workflows, get_workflow_by_id, save_workflow, update_workflow, delete_workflow
 from config import APP_NAME, APP_VERSION, ALLOWED_EXTENSIONS, DB_PATH
 
@@ -100,6 +101,7 @@ def create_app() -> Flask:
     app.register_blueprint(efficienttam_api)
     app.register_blueprint(training_api)
     app.register_blueprint(predict_api)
+    app.register_blueprint(falcon_perception_api)
 
     # AgentUI visual workflow builder — mounted at /agentui
     try:

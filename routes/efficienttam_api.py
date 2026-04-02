@@ -5,7 +5,6 @@ import threading
 import time
 import urllib.request
 
-import cv2
 import numpy as np
 import pixelflow as pf
 import torch
@@ -14,6 +13,7 @@ from PIL import Image as PILImage
 
 from config import DATA_DIR, EFFICIENTTAM_MODELS_DIR, file_path as get_file_path
 from queries import get_file_by_id
+from routes.predict_route import mask_to_norm_polygon
 
 efficienttam_api = Blueprint("sam_api", __name__, url_prefix="/api/sam")
 
@@ -73,23 +73,6 @@ def _ensure_embedding(file_id):
     _cached_file_id = file_id
 
 
-def _mask_to_norm_polygon(mask, img_w, img_h, epsilon_ratio=0.002):
-    """Convert a boolean H×W mask to a normalized flat polygon [x1,y1,x2,y2,...]."""
-    uint8 = (mask.astype(np.uint8)) * 255
-    contours, _ = cv2.findContours(uint8, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    if not contours:
-        return None
-    contour = max(contours, key=cv2.contourArea)
-    epsilon = epsilon_ratio * cv2.arcLength(contour, True)
-    approx = cv2.approxPolyDP(contour, epsilon, True)
-    pts = approx.reshape(-1, 2)
-    if len(pts) < 3:
-        return None
-    poly = []
-    for x, y in pts:
-        poly.append(float(x) / img_w)
-        poly.append(float(y) / img_h)
-    return poly
 
 
 def _run_download():
@@ -213,7 +196,7 @@ def sam_predict_points():
 
     best = max(detections, key=lambda d: d.confidence)
 
-    poly = _mask_to_norm_polygon(best.masks[0], width, height)
+    poly = mask_to_norm_polygon(best.masks[0], width, height)
     if not poly:
         return jsonify({"data": {"masks": []}})
 
