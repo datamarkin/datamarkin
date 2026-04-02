@@ -18,7 +18,7 @@ from rfdetr.training import RFDETRModelModule, RFDETRDataModule, build_trainer
 #   dataset/train/_annotations.coco.json + images
 #   dataset/valid/_annotations.coco.json + images
 #   dataset/test/_annotations.coco.json  + images
-DATASET_DIR = "/Users/nazif/Downloads/test_coco"
+DATASET_DIR = "/X/Downloads/test_coco"
 OUTPUT_DIR  = "output/segmentation"
 EPOCHS      = 20
 BATCH_SIZE  = 1
