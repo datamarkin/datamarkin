@@ -2,7 +2,7 @@ import atexit
 import os
 import signal
 
-from flask import Flask, render_template, request
+from flask import Flask, redirect, render_template, request
 from db import get_db, init_db
 from routes.projects_page_route import (
     projects_page_route, project_new_page_route, project_upload_route,
@@ -16,8 +16,8 @@ from routes.api import api
 from routes.efficienttam_api import efficienttam_api
 from routes.training_route import training_api
 from routes.predict_route import predict_api
-from queries import get_done_trainings
-from config import APP_NAME, APP_VERSION, ALLOWED_EXTENSIONS
+from queries import get_done_trainings, list_workflows, get_workflow_by_id, save_workflow, update_workflow, delete_workflow
+from config import APP_NAME, APP_VERSION, ALLOWED_EXTENSIONS, DB_PATH
 
 
 def get_active_tab():
@@ -31,7 +31,7 @@ def get_active_tab():
         return "projects"
     elif path == "/model-zoo":
         return "model_zoo"
-    elif path == "/workflows":
+    elif path in ("/workflows",) or path.startswith("/agentui"):
         return "workflows"
     elif path == "/settings":
         return "settings"
@@ -101,6 +101,58 @@ def create_app() -> Flask:
     app.register_blueprint(training_api)
     app.register_blueprint(predict_api)
 
+    # AgentUI visual workflow builder — mounted at /agentui
+    try:
+        import agentui
+        from agentui.api.server import bp as agentui_bp
+        from flask import jsonify as _jsonify, request as _request
+        from tools.agentui_tools import DatamarkinLocalModel, METADATA as DM_METADATA
+        agentui.register_tool(DatamarkinLocalModel, DM_METADATA)
+        agentui.set_header(
+            'agentui_header.html',
+            context_fn=lambda: {'saved_workflows': list_workflows()}
+        )
+
+        # Workflow persistence routes — registered on the main app so they shadow
+        # the agentui blueprint's cloud-proxy fallbacks when embedded here.
+        @app.route("/agentui/api/workflows", methods=["GET", "POST"])
+        def agentui_workflows():
+            import json
+            if _request.method == "POST":
+                data = _request.get_json() or {}
+                row = save_workflow(
+                    name=data.get("name", "Untitled"),
+                    description=data.get("description", ""),
+                    workflow_json=json.dumps(data.get("workflow", {})),
+                )
+                return _jsonify(row), 201
+            return _jsonify(list_workflows())
+
+        @app.route("/agentui/api/workflows/<workflow_id>", methods=["GET", "PATCH", "DELETE"])
+        def agentui_workflow(workflow_id):
+            import json
+            if _request.method == "GET":
+                row = get_workflow_by_id(workflow_id)
+                if row is None:
+                    return _jsonify({"error": "Not found"}), 404
+                result = dict(row)
+                result["code"] = json.loads(result.pop("workflow_json", "{}"))
+                return _jsonify(result)
+            if _request.method == "PATCH":
+                data = _request.get_json() or {}
+                result = update_workflow(workflow_id, data)
+                if result is None:
+                    return _jsonify({"error": "Not found"}), 404
+                return _jsonify(result)
+            if _request.method == "DELETE":
+                delete_workflow(workflow_id)
+                return _jsonify({"ok": True})
+
+        agentui_bp.url_prefix = '/agentui'
+        app.register_blueprint(agentui_bp, url_prefix='/agentui')
+    except ImportError as e:
+        print(f"AgentUI not available: {e}")
+
     @app.route("/")
     @app.route("/projects")
     def projects():
@@ -163,7 +215,7 @@ def create_app() -> Flask:
 
     @app.route("/workflows")
     def workflows():
-        return render_template("workflows.html")
+        return redirect("/agentui/")
 
     @app.route("/files/<file_id>")
     def serve_file(file_id):

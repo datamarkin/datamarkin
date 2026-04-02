@@ -7,6 +7,7 @@ import urllib.request
 
 import cv2
 import numpy as np
+import pixelflow as pf
 import torch
 from flask import Blueprint, jsonify, request
 from PIL import Image as PILImage
@@ -72,15 +73,23 @@ def _ensure_embedding(file_id):
     _cached_file_id = file_id
 
 
-def _mask_to_polygon(mask_2d, epsilon_ratio=0.002):
-    mask_uint8 = (mask_2d > 0).astype(np.uint8) * 255
-    contours, _ = cv2.findContours(mask_uint8, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+def _mask_to_norm_polygon(mask, img_w, img_h, epsilon_ratio=0.002):
+    """Convert a boolean H×W mask to a normalized flat polygon [x1,y1,x2,y2,...]."""
+    uint8 = (mask.astype(np.uint8)) * 255
+    contours, _ = cv2.findContours(uint8, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     if not contours:
-        return []
+        return None
     contour = max(contours, key=cv2.contourArea)
-    epsilon = epsilon_ratio * cv2.arcLength(contour, closed=True)
-    simplified = cv2.approxPolyDP(contour, epsilon, closed=True)
-    return simplified.reshape(-1).tolist()
+    epsilon = epsilon_ratio * cv2.arcLength(contour, True)
+    approx = cv2.approxPolyDP(contour, epsilon, True)
+    pts = approx.reshape(-1, 2)
+    if len(pts) < 3:
+        return None
+    poly = []
+    for x, y in pts:
+        poly.append(float(x) / img_w)
+        poly.append(float(y) / img_h)
+    return poly
 
 
 def _run_download():
@@ -195,20 +204,20 @@ def sam_predict_points():
             multimask_output=True,
         )
 
-        best = int(np.argmax(scores))
-        polygon_px = _mask_to_polygon(masks[best])
+        detections = pf.detections.from_efficienttam(masks, scores)
 
     gc.collect()
 
-    if not polygon_px:
+    if len(detections) == 0:
         return jsonify({"data": {"masks": []}})
 
-    norm_polygon = [
-        polygon_px[i] / (width if i % 2 == 0 else height)
-        for i in range(len(polygon_px))
-    ]
-    xs = norm_polygon[0::2]
-    ys = norm_polygon[1::2]
-    bbox = [min(xs), min(ys), max(xs), max(ys)]
+    best = max(detections, key=lambda d: d.confidence)
 
-    return jsonify({"data": {"masks": [{"segmentation": norm_polygon, "bbox": bbox, "score": float(scores[best])}]}})
+    poly = _mask_to_norm_polygon(best.masks[0], width, height)
+    if not poly:
+        return jsonify({"data": {"masks": []}})
+
+    x1, y1, x2, y2 = best.bbox
+    bbox = [x1 / width, y1 / height, x2 / width, y2 / height]
+
+    return jsonify({"data": {"masks": [{"segmentation": poly, "bbox": bbox, "score": float(best.confidence)}]}})

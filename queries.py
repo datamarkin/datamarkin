@@ -287,3 +287,61 @@ def get_project_trainings(project_id: str) -> list[dict]:
     ).fetchall()
     conn.close()
     return [dict(row) for row in rows]
+
+
+# ── Workflow queries ───────────────────────────────────────────────────────────
+
+def list_workflows() -> list[dict]:
+    conn = get_db()
+    rows = conn.execute(
+        "SELECT * FROM workflows ORDER BY updated_at DESC"
+    ).fetchall()
+    conn.close()
+    return [dict(row) for row in rows]
+
+
+def get_workflow_by_id(workflow_id: str) -> dict | None:
+    conn = get_db()
+    row = conn.execute("SELECT * FROM workflows WHERE id = ?", (workflow_id,)).fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
+def save_workflow(name: str, description: str, workflow_json: str) -> dict:
+    conn = get_db()
+    workflow_id = new_id()
+    ts = now()
+    conn.execute(
+        """INSERT INTO workflows (id, name, description, workflow_json, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?)""",
+        (workflow_id, name, description, workflow_json, ts, ts),
+    )
+    conn.commit()
+    row = conn.execute("SELECT * FROM workflows WHERE id = ?", (workflow_id,)).fetchone()
+    conn.close()
+    return dict(row)
+
+
+def update_workflow(workflow_id: str, data: dict) -> dict | None:
+    allowed = {"name", "description", "workflow_json"}
+    updates = {k: v for k, v in data.items() if k in allowed}
+    if not updates:
+        return get_workflow_by_id(workflow_id)
+    conn = get_db()
+    ts = now()
+    set_clause = ", ".join(f"{k} = ?" for k in updates)
+    conn.execute(
+        f"UPDATE workflows SET {set_clause}, updated_at = ? WHERE id = ?",
+        [*updates.values(), ts, workflow_id],
+    )
+    conn.commit()
+    row = conn.execute("SELECT * FROM workflows WHERE id = ?", (workflow_id,)).fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
+def delete_workflow(workflow_id: str) -> None:
+    conn = get_db()
+    conn.execute("DELETE FROM workflows WHERE id = ?", (workflow_id,))
+    conn.commit()
+    conn.close()

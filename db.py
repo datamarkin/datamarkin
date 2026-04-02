@@ -69,6 +69,15 @@ def init_db() -> None:
             created_at    TEXT NOT NULL,
             updated_at    TEXT NOT NULL
         );
+
+        CREATE TABLE IF NOT EXISTS workflows (
+            id            TEXT PRIMARY KEY,
+            name          TEXT NOT NULL,
+            description   TEXT DEFAULT '',
+            workflow_json TEXT NOT NULL,
+            created_at    TEXT NOT NULL,
+            updated_at    TEXT NOT NULL
+        );
     """)
     conn.close()
 
