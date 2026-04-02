@@ -882,3 +882,60 @@ async function requestNewEmbedding() {
     }
 }
 
+// ── Falcon-Perception auto-annotate (single image) ──────────────────────────
+
+document.getElementById('falcon-auto-annotate')?.addEventListener('click', async function() {
+    const btn = this;
+    btn.classList.add('is-loading');
+    btn.disabled = true;
+    try {
+        const resp = await fetch('/api/falcon/auto_annotate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ file_id: imageId, project_id: projectId })
+        });
+        const data = await resp.json();
+        if (data.error) { alert(data.error); return; }
+
+        for (const obj of (data.objects || [])) {
+            const label = projectLabels.find(l => l.id === obj.class);
+            const color = label ? label.color : '466565';
+            const denormBbox = [
+                obj.bbox[0] * imageWidth, obj.bbox[1] * imageHeight,
+                obj.bbox[2] * imageWidth, obj.bbox[3] * imageHeight
+            ];
+            const opts = {
+                bbox: denormBbox,
+                class: String(obj.class),
+                fill: '#' + color,
+                stroke: '#' + color,
+                uuid: null
+            };
+            if (obj.segmentation && obj.segmentation.length) {
+                const denorm = [];
+                for (let i = 0; i < obj.segmentation.length; i += 2) {
+                    denorm.push(
+                        obj.segmentation[i] * imageWidth,
+                        obj.segmentation[i + 1] * imageHeight
+                    );
+                }
+                opts.segmentation = denorm;
+            }
+            markin.createAnnotation(opts);
+        }
+
+        if (data.objects && data.objects.length > 0) {
+            const exported = markin.exportAllAnnotations({
+                normalize: true,
+                width: imageWidth,
+                height: imageHeight
+            });
+            updateAPIAnnotations(convertMarkinToStorageFormat(exported));
+        }
+    } catch (e) {
+        console.error('Auto annotate failed:', e);
+    } finally {
+        btn.classList.remove('is-loading');
+        btn.disabled = false;
+    }
+});
