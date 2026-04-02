@@ -32,6 +32,9 @@
             <button id="train-btn" class="button is-small is-app">
                 Train
             </button>
+            <button id="auto-annotate-btn" class="button is-small is-app">
+                Auto Annotate
+            </button>
             <button id="settings-btn" class="button is-small is-app">
                 <span class="icon is-small">
                       {% include 'icons/cog-6-tooth.svg' %}
@@ -76,6 +79,13 @@
 {% endblock %}
 
 {% block content %}
+    <div id="auto-annotate-banner" style="display:none; position:relative; z-index:100;"
+         class="notification is-info is-light py-2 px-4 m-0 has-text-centered">
+        <strong>Auto annotating...</strong>
+        <span id="auto-annotate-progress" class="ml-2">0 / 0</span>
+        <progress id="auto-annotate-bar" class="progress is-small is-info mt-1 mb-0" value="0" max="100"
+                  style="max-width:300px; margin:0 auto;"></progress>
+    </div>
     <div class="image-grid-container">
         <div class="columns is-multiline is-mobile" id="image-grid">
             {% for file in files %}
@@ -1102,5 +1112,49 @@
                     .then(function () { fetchAndRender(currentId); });
             });
         })();
+
+        // ── Auto-annotate batch ─────────────────────────────────────────
+        document.getElementById('auto-annotate-btn').addEventListener('click', async function () {
+            const btn = this;
+            btn.classList.add('is-loading');
+            btn.disabled = true;
+            try {
+                const resp = await fetch('/api/falcon/auto_annotate_batch', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({project_id: '{{ project.id }}', target: 'all'})
+                });
+                const data = await resp.json();
+                if (data.error) {
+                    alert(data.error);
+                    btn.classList.remove('is-loading');
+                    btn.disabled = false;
+                    return;
+                }
+                document.getElementById('auto-annotate-banner').style.display = '';
+                let pollErrors = 0;
+                const poll = setInterval(async function () {
+                    try {
+                        const s = await (await fetch('/api/falcon/auto_annotate_batch_status')).json();
+                        pollErrors = 0;
+                        document.getElementById('auto-annotate-progress').textContent = s.current + ' / ' + s.total;
+                        const pct = s.total ? (s.current / s.total * 100) : 0;
+                        document.getElementById('auto-annotate-bar').value = pct;
+                        if (s.status === 'done' || s.status === 'error') {
+                            clearInterval(poll);
+                            if (s.status === 'error') alert('Auto-annotate error: ' + (s.error || 'Unknown'));
+                            location.reload();
+                        }
+                    } catch (e) {
+                        console.error('Poll error:', e);
+                        if (++pollErrors >= 5) { clearInterval(poll); alert('Lost connection to server'); }
+                    }
+                }, 2000);
+            } catch (e) {
+                console.error('Auto annotate batch failed:', e);
+                btn.classList.remove('is-loading');
+                btn.disabled = false;
+            }
+        });
     </script>
 {% endblock %}
