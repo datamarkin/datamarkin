@@ -14,6 +14,10 @@ if __name__ == "__main__":
     app = create_app()
     t = threading.Thread(target=run_flask, args=(app,), daemon=True)
     t.start()
+
+    from update_check import check_for_update
+    threading.Thread(target=check_for_update, daemon=True).start()
+
     window = webview.create_window(
         "Datamarkin",
         f"http://127.0.0.1:{config.FLASK_PORT}/projects",

@@ -2,7 +2,7 @@ import atexit
 import os
 import signal
 
-from flask import Flask, redirect, render_template, request
+from flask import Flask, jsonify, redirect, render_template, request
 from db import get_db, init_db
 from routes.projects_page_route import (
     projects_page_route, project_new_page_route, project_upload_route,
@@ -224,5 +224,25 @@ def create_app() -> Flask:
     @app.route("/files/<file_id>")
     def serve_file(file_id):
         return files_route(file_id)
+
+    # ── Update check API ────────────────────────────────────────────────
+    from update_check import get_update_info, download_update
+
+    @app.route("/api/update-check")
+    def update_check():
+        info = get_update_info()
+        if info:
+            return jsonify({"available": True, **info})
+        return jsonify({"available": False})
+
+    @app.route("/api/update-download", methods=["POST"])
+    def update_download():
+        try:
+            path = download_update()
+            if path:
+                return jsonify({"ok": True, "path": path})
+            return jsonify({"ok": False, "error": "No download available"}), 404
+        except Exception as e:
+            return jsonify({"ok": False, "error": str(e)}), 500
 
     return app
