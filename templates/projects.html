@@ -40,8 +40,13 @@
                             <a title="{{ project.name }}" href="/project/{{ project.id }}"
                                class="media box box-with-border p-4 is-align-items-center">
                                 <figure class="media-left">
+                                        {% if project.thumb_file_id %}
+                                        <img class="image is-64x64" style="border-radius: 4px; object-fit: cover;"
+                                             src="{{ url_for('serve_file', file_id=project.thumb_file_id, key='cover_small') }}">
+                                        {% else %}
                                         <img class="image is-64x64" style="border-radius: 4px;"
                                              src="{{ url_for('static', filename='images/pexels-pixabay-276551.jpg') }}">
+                                        {% endif %}
                                 </figure>
                                 <div class="media-content">
                                     <div class="content">

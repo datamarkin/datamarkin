@@ -93,7 +93,12 @@ def get_project_files_paginated(
 
 def get_all_projects() -> list[dict]:
     conn = get_db()
-    rows = conn.execute("SELECT * FROM projects ORDER BY created_at DESC").fetchall()
+    rows = conn.execute(
+        """SELECT p.*,
+           (SELECT f.id FROM files f WHERE f.project_id = p.id
+            ORDER BY f.sort_order, f.created_at LIMIT 1) AS thumb_file_id
+           FROM projects p ORDER BY p.created_at DESC"""
+    ).fetchall()
     conn.close()
     return [dict(row) for row in rows]
 
