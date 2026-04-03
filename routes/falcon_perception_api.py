@@ -108,7 +108,7 @@ def _ensure_loaded():
     from falcon_perception.mlx.batch_inference import BatchInferenceEngine
 
     model, _tokenizer, _model_args = load_and_prepare_model(
-        hf_local_dir=str(_FALCON_LOCAL), dtype="float16", backend="mlx",
+        local_dir=str(_FALCON_LOCAL), dtype="float16", backend="mlx",
     )
     _engine = BatchInferenceEngine(model, _tokenizer)
 
