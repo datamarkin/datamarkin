@@ -13,6 +13,7 @@ from PIL import Image as PILImage
 
 from config import DATA_DIR, EFFICIENTTAM_MODELS_DIR, file_path as get_file_path
 from queries import get_file_by_id
+from routes.download_api import update_download_state, clear_download_state
 from routes.predict_route import mask_to_norm_polygon
 
 efficienttam_api = Blueprint("sam_api", __name__, url_prefix="/api/sam")
@@ -77,12 +78,13 @@ def _ensure_embedding(file_id):
 
 def _run_download():
     global _dl_state
-    import pixelflow as pf
 
     with _dl_lock:
         if _dl_state["status"] == "downloading":
             return
         _dl_state.update({"status": "downloading", "pct": 0, "error": None})
+
+    update_download_state("EfficientTAM", status="downloading", pct=0)
 
     try:
         # Pre-fetch Content-Length for progress tracking
@@ -95,12 +97,11 @@ def _run_download():
             pass
 
         tmp = _model_path().with_suffix(".pt.download")
-        result = [None]
         exc = [None]
 
         def do_download():
             try:
-                result[0] = pf.assets.download(_MODEL_ASSET, directory=DATA_DIR, quiet=True)
+                pf.assets.download(_MODEL_ASSET, directory=DATA_DIR, quiet=True)
             except Exception as e:
                 exc[0] = e
 
@@ -110,7 +111,9 @@ def _run_download():
         while t.is_alive():
             if total > 0 and tmp.exists():
                 try:
-                    _dl_state["pct"] = min(99, int(tmp.stat().st_size / total * 100))
+                    pct = min(99, int(tmp.stat().st_size / total * 100))
+                    _dl_state["pct"] = pct
+                    update_download_state("EfficientTAM", status="downloading", pct=pct)
                 except OSError:
                     pass
             time.sleep(0.5)
@@ -120,8 +123,11 @@ def _run_download():
             raise exc[0]
 
         _dl_state.update({"status": "ready", "pct": 100, "error": None})
+        update_download_state("EfficientTAM", status="ready", pct=100)
+        threading.Timer(5.0, clear_download_state, args=["EfficientTAM"]).start()
     except Exception as e:
         _dl_state.update({"status": "error", "error": str(e)})
+        update_download_state("EfficientTAM", status="error", error=str(e))
 
 
 def _get_model_status():

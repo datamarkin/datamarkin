@@ -3,14 +3,18 @@
 import gc
 import json
 import threading
+import time
+import urllib.request
 
 import mlx.core as mx
 import pixelflow as pf
 from flask import Blueprint, jsonify, request
 from PIL import Image as PILImage
+from pixelflow.assets import DownloadError
 
-from config import file_path as get_file_path
+from config import DATA_DIR, file_path as get_file_path
 from queries import get_file_by_id, get_project_by_id, get_project_files, update_file_annotations
+from routes.download_api import update_download_state, clear_download_state
 from routes.predict_route import mask_to_norm_polygon
 from utils.dedup import deduplicate_objects
 
@@ -30,15 +34,81 @@ def _parse_labels(project):
     return json.loads(raw) if isinstance(raw, str) else raw
 
 
+_FALCON_FILES = [
+    "config.json", "model.safetensors", "tokenizer.json",
+    "tokenizer_config.json", "special_tokens_map.json",
+]
+_FALCON_LOCAL = DATA_DIR / "dtmfiles" / "falcon-perception"
+
+
+_WEIGHTS_URL = "https://dtmfiles.com/falcon-perception/model.safetensors"
+_WEIGHTS_LOCAL = _FALCON_LOCAL / "model.safetensors"
+
+
+def _download_falcon_files():
+    """Download all Falcon Perception files with progress tracking for the weights."""
+    # Download small config/tokenizer files first (instant if cached)
+    for f in _FALCON_FILES:
+        if f == "model.safetensors":
+            continue
+        pf.assets.download(f"falcon-perception/{f}", directory=DATA_DIR)
+
+    # If weights already cached, skip
+    if _WEIGHTS_LOCAL.exists():
+        return
+
+    # Get Content-Length for progress tracking
+    total = 0
+    try:
+        req = urllib.request.Request(_WEIGHTS_URL, method="HEAD")
+        with urllib.request.urlopen(req, timeout=10) as r:
+            total = int(r.headers.get("Content-Length", 0))
+    except Exception:
+        pass
+
+    update_download_state("Falcon Perception", status="downloading", pct=0)
+    tmp = _WEIGHTS_LOCAL.with_suffix(".safetensors.download")
+    exc = [None]
+
+    def do_download():
+        try:
+            pf.assets.download("falcon-perception/model.safetensors", directory=DATA_DIR, quiet=True)
+        except Exception as e:
+            exc[0] = e
+
+    t = threading.Thread(target=do_download, daemon=True)
+    t.start()
+    while t.is_alive():
+        if total > 0 and tmp.exists():
+            try:
+                update_download_state("Falcon Perception", status="downloading",
+                                      pct=min(99, int(tmp.stat().st_size / total * 100)))
+            except OSError:
+                pass
+        time.sleep(0.5)
+    t.join()
+
+    if exc[0] is not None:
+        update_download_state("Falcon Perception", status="error", error=str(exc[0]))
+        raise exc[0]
+
+    update_download_state("Falcon Perception", status="ready", pct=100)
+    # Clear after a delay so the toast can show "Complete"
+    threading.Timer(5.0, clear_download_state, args=["Falcon Perception"]).start()
+
+
 def _ensure_loaded():
     global _engine, _tokenizer, _model_args
     if _engine is not None:
         return
-    from falcon_perception import PERCEPTION_MODEL_ID, load_and_prepare_model
+
+    _download_falcon_files()
+
+    from falcon_perception import load_and_prepare_model
     from falcon_perception.mlx.batch_inference import BatchInferenceEngine
 
     model, _tokenizer, _model_args = load_and_prepare_model(
-        hf_model_id=PERCEPTION_MODEL_ID, dtype="float16", backend="mlx",
+        hf_local_dir=str(_FALCON_LOCAL), dtype="float16", backend="mlx",
     )
     _engine = BatchInferenceEngine(model, _tokenizer)
 
@@ -143,8 +213,11 @@ def _auto_annotate_file(file_row, labels):
 
 @falcon_perception_api.route("/load", methods=["POST"])
 def falcon_load():
-    with _lock:
-        _ensure_loaded()
+    try:
+        with _lock:
+            _ensure_loaded()
+    except DownloadError as e:
+        return jsonify({"error": f"Model download failed: {e}"}), 503
     return jsonify({"data": {"loaded": True}})
 
 
@@ -170,9 +243,12 @@ def falcon_auto_annotate():
     if not file_row:
         return jsonify({"error": "File not found"}), 404
 
-    with _lock:
-        _ensure_loaded()
-        new_objects, merged = _auto_annotate_file(file_row, labels)
+    try:
+        with _lock:
+            _ensure_loaded()
+            new_objects, merged = _auto_annotate_file(file_row, labels)
+    except DownloadError as e:
+        return jsonify({"error": f"Model download failed: {e}"}), 503
 
     update_file_annotations(file_id, json.dumps({"objects": merged}))
     return jsonify({"new_count": len(new_objects), "objects": new_objects})

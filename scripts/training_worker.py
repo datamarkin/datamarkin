@@ -21,7 +21,18 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
 
-from config import DB_PATH, MODELS_DIR, TRAINING_JOBS_DIR
+import pixelflow as pf
+
+from config import DATA_DIR, DB_PATH, MODELS_DIR, TRAINING_JOBS_DIR
+
+RFDETR_ASSETS = {
+    ("detection", "small"):      "rfdetr/rfdetr_small.pth",
+    ("detection", "base"):       "rfdetr/rfdetr_base.pth",
+    ("detection", "large"):      "rfdetr/rfdetr_large.pth",
+    ("segmentation", "small"):   "rfdetr/rfdetr_seg_small.pth",
+    ("segmentation", "base"):    "rfdetr/rfdetr_seg_medium.pth",
+    ("segmentation", "large"):   "rfdetr/rfdetr_seg_large.pth",
+}
 
 
 def _db() -> sqlite3.Connection:
@@ -144,7 +155,13 @@ def main(training_id: str) -> None:
 
         signal.signal(signal.SIGTERM, _on_sigterm)
 
-        model = ModelClass(resolution=resolution)
+        # Download pretrained weights from dtmfiles.com (skips if cached)
+        asset_path = RFDETR_ASSETS.get((project_type, model_size))
+        if asset_path:
+            ckpt = pf.assets.download(asset_path, directory=DATA_DIR)
+            model = ModelClass(resolution=resolution, pretrain_weights=str(ckpt))
+        else:
+            model = ModelClass(resolution=resolution)
         history = []
 
     except Exception:

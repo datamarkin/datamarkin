@@ -894,8 +894,13 @@ document.getElementById('falcon-auto-annotate')?.addEventListener('click', async
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ file_id: imageId, project_id: projectId })
         });
+        if (!resp.ok) {
+            const errData = await resp.json().catch(() => null);
+            showToast(errData?.error || `Auto annotate failed (HTTP ${resp.status})`, 'error');
+            return;
+        }
         const data = await resp.json();
-        if (data.error) { alert(data.error); return; }
+        if (data.error) { showToast(data.error, 'error'); return; }
 
         for (const obj of (data.objects || [])) {
             const label = projectLabels.find(l => l.id === obj.class);
@@ -934,6 +939,7 @@ document.getElementById('falcon-auto-annotate')?.addEventListener('click', async
         }
     } catch (e) {
         console.error('Auto annotate failed:', e);
+        showToast('Auto annotate failed. Please check that the model is available.', 'error');
     } finally {
         btn.classList.remove('is-loading');
         btn.disabled = false;
