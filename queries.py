@@ -284,6 +284,19 @@ def get_done_trainings() -> list[dict]:
     return [dict(row) for row in rows]
 
 
+def get_done_trainings_with_project() -> list[dict]:
+    conn = get_db()
+    rows = conn.execute(
+        """SELECT t.*, p.name AS project_name
+           FROM trainings t
+           LEFT JOIN projects p ON t.project_id = p.id
+           WHERE t.status = 'done'
+           ORDER BY t.created_at DESC"""
+    ).fetchall()
+    conn.close()
+    return [dict(row) for row in rows]
+
+
 def get_project_trainings(project_id: str) -> list[dict]:
     conn = get_db()
     rows = conn.execute(

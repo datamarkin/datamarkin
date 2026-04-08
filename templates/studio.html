@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+
+{% block title %}Studio — Datamarkin{% endblock %}
+
+{% block content %}
+    <section class="section">
+        <div class="container">
+            <div class="content">
+                <h1 class="is-size-1">Studio</h1>
+                {% if trainings %}
+                <div id="models" class="columns is-multiline">
+                    {% for t in trainings %}
+                    {% set cfg = t.config %}
+                    {% set metrics = t.metrics %}
+                    <div class="column is-6">
+                        <a title="{{ t.project_name | default('Model') }}" href="/studio/{{ t.id }}"
+                           class="media box box-with-border p-4 is-align-items-center">
+                            <figure class="media-left">
+                                <p class="image is-64x64"
+                                   style="display:flex; align-items:center; justify-content:center; background:#f7ecd9; border-radius:8px;">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="#888" >
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="m21 7.5-9-5.25L3 7.5m18 0-9 5.25m9-5.25v9l-9 5.25M3 7.5l9 5.25M3 7.5v9l9 5.25m0-9v9" />
+                                    </svg>
+                                </p>
+                            </figure>
+                            <div class="media-content">
+                                <div class="content">
+                                    <p>
+                                        <strong>{{ t.project_name | default('Unknown') }}</strong>
+                                        <br>
+                                        <small class="has-text-grey">
+                                            {{ cfg.project_type | default('detection') }} ·
+                                            {{ cfg.model_size | default('base') }} ·
+                                            {{ cfg.resolution | default(560) }}px
+                                            {% if metrics.best_mAP %} · mAP {{ "%.1f"|format(metrics.best_mAP) }}%{% endif %}
+                                        </small>
+                                    </p>
+                                </div>
+                            </div>
+                        </a>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div style="text-align:center; padding:3rem 1rem;">
+                    <p style="color:#999; font-size:0.95rem;">
+                        No trained models yet. Train a model in a project first.
+                    </p>
+                    <a href="/projects" class="button is-small is-app" style="margin-top:1rem;">Go to Projects</a>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </section>
+{% endblock %}

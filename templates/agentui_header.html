@@ -1,149 +1,222 @@
+<link rel="stylesheet" href="/static/css/custom.css">
+
 <div class="dm-wf-bar">
-  <span class="dm-wf-title">Workflows</span>
-
-  <button class="button is-dark is-small" id="dm-btn-run">
-    <span id="dm-btn-run-label">Run</span>
-  </button>
-
-  <button class="button is-small" id="dm-btn-save">Save</button>
-
-  <div class="dropdown" id="dm-load-dd">
-    <div class="dropdown-trigger">
-      <button class="button is-small" aria-haspopup="true" aria-controls="dm-load-menu"
-              onclick="document.getElementById('dm-load-dd').classList.toggle('is-active')">
-        <span>Load</span>
-        <span class="icon is-small">&#9660;</span>
-      </button>
-    </div>
-    <div class="dropdown-menu" id="dm-load-menu" role="menu">
-      <div class="dropdown-content">
-        {% for w in saved_workflows %}
-        <a class="dropdown-item"
-           onclick="dmLoadWorkflow('{{ w.id }}')">
-          {{ w.name }}
-          <span class="has-text-grey is-size-7"> — {{ w.updated_at[:10] }}</span>
+    <div class="dm-wf-bar-left">
+        <a href="/workflows" class="button is-app is-small" title="Workflows">
+            <span class="dm-wf-title">Workflows</span>
         </a>
-        {% endfor %}
-        {% if not saved_workflows %}
-        <span class="dropdown-item has-text-grey">No saved workflows</span>
-        {% endif %}
-      </div>
     </div>
-  </div>
+    <div class="dm-wf-bar-center">
+        <div class="dm-wf-actions">
+            <button class="button is-app is-small">
+                <span id="dm-btn-run-label">Run</span>
+            </button>
+            <button class="button is-app is-small">
+                <span id="dm-btn-run-label">Run</span>
+            </button>
+            <button class="button is-app is-small">
+                <span id="dm-btn-run-label">Run</span>
+            </button>
+        </div>
+    </div>
+    <div class="dm-wf-bar-right">
+        <button class="button is-app is-small" id="dm-btn-run">
+            <span id="dm-btn-run-label">Run</span>
+        </button>
+        <button class="button is-app is-small" id="dm-btn-save">Save</button>
+        <div class="dropdown" id="dm-load-dd">
+            <div class="dropdown-trigger">
+                <button class="button is-app is-small" aria-haspopup="true" aria-controls="dm-load-menu"
+                        onclick="document.getElementById('dm-load-dd').classList.toggle('is-active')">
+                    <span>Load</span>
+                    <span style="font-size:0.6em; margin-left:4px;">&#9660;</span>
+                </button>
+            </div>
+            <div class="dropdown-menu" id="dm-load-menu" role="menu" style="right:0; left:auto;">
+                <div class="dropdown-content">
+                    {% for w in saved_workflows %}
+                        <a class="dropdown-item" onclick="dmLoadWorkflow('{{ w.id }}')">
+                            {{ w.name }}
+                            <span class="has-text-grey is-size-7"> — {{ w.updated_at[:10] }}</span>
+                        </a>
+                    {% endfor %}
+                    {% if not saved_workflows %}
+                        <span class="dropdown-item has-text-grey">No saved workflows</span>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 
 <!-- Save modal -->
 <div class="modal" id="dm-save-modal">
-  <div class="modal-background" onclick="document.getElementById('dm-save-modal').classList.remove('is-active')"></div>
-  <div class="modal-card">
-    <header class="modal-card-head" style="background:#faf8f4; border-bottom:1px solid #e8d5b7;">
-      <p class="modal-card-title" style="font-family:'Libre Baskerville',serif; color:#3d2b1f;">Save Workflow</p>
-      <button class="delete" aria-label="close"
-              onclick="document.getElementById('dm-save-modal').classList.remove('is-active')"></button>
-    </header>
-    <section class="modal-card-body" style="background:#fffdf7;">
-      <div class="field">
-        <label class="label">Name</label>
-        <div class="control">
-          <input class="input" id="dm-wf-name" type="text" placeholder="My workflow">
-        </div>
-      </div>
-      <div class="field">
-        <label class="label">Description <span class="has-text-grey-light">(optional)</span></label>
-        <div class="control">
-          <input class="input" id="dm-wf-desc" type="text" placeholder="What does this workflow do?">
-        </div>
-      </div>
-    </section>
-    <footer class="modal-card-foot" style="background:#faf8f4; border-top:1px solid #e8d5b7;">
-      <button class="button is-dark" id="dm-btn-save-confirm">Save</button>
-      <button class="button"
-              onclick="document.getElementById('dm-save-modal').classList.remove('is-active')">Cancel</button>
-    </footer>
-  </div>
+    <div class="modal-background"
+         onclick="document.getElementById('dm-save-modal').classList.remove('is-active')"></div>
+    <div class="modal-card">
+        <header class="modal-card-head" style="background:#faf8f4; border-bottom:1px solid #e8d5b7;">
+            <p class="modal-card-title" style="font-family:'Libre Baskerville Bold',serif; color:#2a2a2a;">Save
+                Workflow</p>
+            <button class="delete" aria-label="close"
+                    onclick="document.getElementById('dm-save-modal').classList.remove('is-active')"></button>
+        </header>
+        <section class="modal-card-body" style="background:#fffdf7;">
+            <div class="field">
+                <label class="label">Name</label>
+                <div class="control">
+                    <input class="input" id="dm-wf-name" type="text" placeholder="My workflow">
+                </div>
+            </div>
+            <div class="field">
+                <label class="label">Description <span class="has-text-grey-light">(optional)</span></label>
+                <div class="control">
+                    <input class="input" id="dm-wf-desc" type="text" placeholder="What does this workflow do?">
+                </div>
+            </div>
+        </section>
+        <footer class="modal-card-foot" style="background:#faf8f4; border-top:1px solid #e8d5b7;">
+            <button class="button is-dark" id="dm-btn-save-confirm">Save</button>
+            <button class="button"
+                    onclick="document.getElementById('dm-save-modal').classList.remove('is-active')">Cancel
+            </button>
+        </footer>
+    </div>
 </div>
 
 <style>
-.dm-wf-bar {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.4rem 1rem;
-  background: #faf8f4;
-  border-bottom: 1px solid #e8d5b7;
-  position: relative;
-  z-index: 10;
-}
-.dm-wf-title {
-  font-family: 'Libre Baskerville', serif;
-  font-weight: 600;
-  color: #3d2b1f;
-  margin-right: auto;
-  font-size: 0.95rem;
-}
-/* Close load dropdown when clicking outside */
-.dm-wf-bar .dropdown-menu {
-  z-index: 100;
-}
+    /* Match Datamarkin titlebar exactly */
+    .dm-wf-bar {
+        height: 48px;
+        display: grid;
+        grid-template-columns: 1fr auto 1fr;
+        align-items: center;
+        background: #f7ecd9;
+        border-bottom: 1px solid #fbe2b8;
+        padding: 0 16px;
+        position: relative;
+        z-index: 10;
+    }
+
+    .dm-wf-bar-left {
+        display: flex;
+        align-items: center;
+        justify-self: start;
+    }
+
+    .dm-wf-bar-center {
+        display: flex;
+        justify-content: center;
+    }
+
+    .dm-wf-bar-right {
+        justify-self: end;
+    }
+
+    .dm-wf-title {
+        font-family: 'Libre Baskerville Bold', serif;
+        font-weight: 700;
+        color: #2a2a2a;
+        font-size: 0.85rem;
+    }
+
+    .dm-wf-actions {
+        display: flex;
+        gap: 2px;
+        background: rgba(0, 0, 0, 0.06);
+        border-radius: 8px;
+        padding: 3px;
+    }
+
+    .dm-wf-actions .button.is-app {
+        background: none;
+        border-color: transparent;
+        box-shadow: none;
+        color: #666;
+        font-size: 13px;
+        font-weight: 500;
+        padding: 5px 14px;
+        border-radius: 6px;
+        transition: background 0.15s, color 0.15s;
+        cursor: pointer;
+        height: auto;
+        line-height: 1;
+    }
+
+    .dm-wf-actions .button.is-app:hover {
+        background: rgba(0, 0, 0, 0.04);
+        color: #333;
+    }
+
+    .dm-wf-actions .button.is-app.is-loading {
+        color: transparent;
+    }
+
+    .dm-wf-bar .dropdown-menu {
+        z-index: 100;
+    }
 </style>
 
 <script>
-  // Close load dropdown when clicking outside
-  document.addEventListener('click', function(e) {
-    const dd = document.getElementById('dm-load-dd');
-    if (dd && !dd.contains(e.target)) {
-      dd.classList.remove('is-active');
+    document.addEventListener('click', function (e) {
+        const dd = document.getElementById('dm-load-dd');
+        if (dd && !dd.contains(e.target)) {
+            dd.classList.remove('is-active');
+        }
+    });
+
+    function dmWhenReady(fn) {
+        if (window.AgentUI) {
+            fn();
+        } else {
+            setTimeout(function () {
+                dmWhenReady(fn);
+            }, 50);
+        }
     }
-  });
 
-  // Wait for window.AgentUI to be set by the Svelte app's onMount
-  function dmWhenReady(fn) {
-    if (window.AgentUI) { fn(); }
-    else { setTimeout(function() { dmWhenReady(fn); }, 50); }
-  }
-
-  function dmLoadWorkflow(id) {
-    document.getElementById('dm-load-dd').classList.remove('is-active');
-    dmWhenReady(function() { window.AgentUI.loadWorkflow(id); });
-  }
-
-  // React to execution state changes from the Svelte app
-  window.addEventListener('agentui:statechange', function(e) {
-    const btn = document.getElementById('dm-btn-run');
-    const label = document.getElementById('dm-btn-run-label');
-    if (!btn) return;
-    if (e.detail.isExecuting) {
-      btn.disabled = true;
-      btn.classList.add('is-loading');
-      label.textContent = 'Running...';
-    } else {
-      btn.disabled = false;
-      btn.classList.remove('is-loading');
-      label.textContent = 'Run';
+    function dmLoadWorkflow(id) {
+        document.getElementById('dm-load-dd').classList.remove('is-active');
+        dmWhenReady(function () {
+            window.AgentUI.loadWorkflow(id);
+        });
     }
-  });
 
-  dmWhenReady(function() {
-    document.getElementById('dm-btn-run').onclick = function() {
-      window.AgentUI.run();
-    };
+    window.addEventListener('agentui:statechange', function (e) {
+        const btn = document.getElementById('dm-btn-run');
+        const label = document.getElementById('dm-btn-run-label');
+        if (!btn) return;
+        if (e.detail.isExecuting) {
+            btn.disabled = true;
+            btn.classList.add('is-loading');
+            label.textContent = 'Running...';
+        } else {
+            btn.disabled = false;
+            btn.classList.remove('is-loading');
+            label.textContent = 'Run';
+        }
+    });
 
-    document.getElementById('dm-btn-save').onclick = function() {
-      document.getElementById('dm-wf-name').value = '';
-      document.getElementById('dm-wf-desc').value = '';
-      document.getElementById('dm-save-modal').classList.add('is-active');
-    };
+    dmWhenReady(function () {
+        document.getElementById('dm-btn-run').onclick = function () {
+            window.AgentUI.run();
+        };
 
-    document.getElementById('dm-btn-save-confirm').onclick = async function() {
-      const name = document.getElementById('dm-wf-name').value.trim() || 'Untitled';
-      const desc = document.getElementById('dm-wf-desc').value.trim();
-      try {
-        await window.AgentUI.saveWorkflow(name, desc);
-        document.getElementById('dm-save-modal').classList.remove('is-active');
-        location.reload(); // refresh Load dropdown with new entry
-      } catch (e) {
-        alert('Failed to save workflow: ' + e.message);
-      }
-    };
-  });
+        document.getElementById('dm-btn-save').onclick = function () {
+            document.getElementById('dm-wf-name').value = '';
+            document.getElementById('dm-wf-desc').value = '';
+            document.getElementById('dm-save-modal').classList.add('is-active');
+        };
+
+        document.getElementById('dm-btn-save-confirm').onclick = async function () {
+            const name = document.getElementById('dm-wf-name').value.trim() || 'Untitled';
+            const desc = document.getElementById('dm-wf-desc').value.trim();
+            try {
+                await window.AgentUI.saveWorkflow(name, desc);
+                document.getElementById('dm-save-modal').classList.remove('is-active');
+                location.reload();
+            } catch (e) {
+                alert('Failed to save workflow: ' + e.message);
+            }
+        };
+    });
 </script>

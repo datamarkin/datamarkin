@@ -2,7 +2,7 @@ import atexit
 import os
 import signal
 
-from flask import Flask, jsonify, redirect, render_template, request
+from flask import Flask, abort, jsonify, redirect, render_template, request
 from db import get_db, init_db
 from routes.projects_page_route import (
     projects_page_route, project_new_page_route, project_upload_route,
@@ -18,7 +18,10 @@ from routes.training_route import training_api
 from routes.predict_route import predict_api
 from routes.falcon_perception_api import falcon_perception_api
 from routes.download_api import download_api
-from queries import get_done_trainings, list_workflows, get_workflow_by_id, save_workflow, update_workflow, delete_workflow
+from queries import (
+    get_done_trainings_with_project, get_project_by_id, get_training,
+    list_workflows, get_workflow_by_id, save_workflow, update_workflow, delete_workflow,
+)
 from config import APP_NAME, APP_VERSION, ALLOWED_EXTENSIONS, DB_PATH
 
 
@@ -27,20 +30,18 @@ def get_active_tab():
     try:
         path = request.path
     except RuntimeError:
-        return "projects"  # Default when no request context (app startup)
-
-    if path in ["/", "/projects"]:
         return "projects"
-    elif path == "/model-zoo":
-        return "model_zoo"
+
+    if path in ("/", "/projects"):
+        return "projects"
     elif path in ("/workflows",) or path.startswith("/agentui"):
         return "workflows"
+    elif path.startswith("/studio"):
+        return "studio"
     elif path == "/settings":
         return "settings"
     elif path.startswith("/project/"):
         return "project_detail"
-    elif path == "/inference":
-        return "inference"
     return "projects"
 
 
@@ -74,8 +75,11 @@ def create_app() -> Flask:
             "version": APP_VERSION,
             "allowed_media_extensions": ALLOWED_EXTENSIONS
         },
-        "active_tab": get_active_tab(),
     })
+
+    @app.context_processor
+    def inject_active_tab():
+        return {"active_tab": get_active_tab()}
 
     init_db()
 
@@ -199,23 +203,31 @@ def create_app() -> Flask:
     # def settings():
     #     return settings_page_route()
 
-    @app.route("/model-zoo")
-    def model_zoo():
-        return render_template("model_zoo.html")
-
-    @app.route("/inference")
-    def inference_page():
+    @app.route("/studio")
+    def studio():
         import json
         trainings = []
-        for t in get_done_trainings():
+        for t in get_done_trainings_with_project():
             t["config"] = json.loads(t.get("config") or "{}")
             t["metrics"] = json.loads(t.get("metrics") or "{}")
             trainings.append(t)
-        return render_template("inference.html", trainings=trainings)
+        return render_template("studio.html", trainings=trainings)
 
-    @app.route("/agents")
-    def agents():
-        return render_template("agents.html")
+    @app.route("/studio/<training_id>")
+    def studio_playground(training_id):
+        import json
+        training = get_training(training_id)
+        if not training or training["status"] != "done":
+            abort(404)
+        training["config"] = json.loads(training.get("config") or "{}")
+        training["metrics"] = json.loads(training.get("metrics") or "{}")
+        project = get_project_by_id(training["project_id"])
+        project_name = project["name"] if project else "Unknown"
+        return render_template("studio_playground.html", training=training, project_name=project_name)
+
+    @app.route("/inference")
+    def inference_redirect():
+        return redirect("/studio")
 
     @app.route("/workflows")
     def workflows():
