@@ -24,6 +24,7 @@ os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
 import pixelflow as pf
 
 from config import DATA_DIR, DB_PATH, MODELS_DIR, TRAINING_JOBS_DIR
+from pipeline import to_rfdetr_aug_config
 
 RFDETR_ASSETS = {
     ("detection", "small"):      "rfdetr/rfdetr_small.pth",
@@ -123,6 +124,10 @@ def main(training_id: str) -> None:
         early_stopping_pat  = cfg.get("early_stopping_patience", 3)
         dataset_dir         = cfg["dataset_dir"]
         project_type        = cfg.get("project_type", "detection")
+
+        # Convert UI augmentation pipeline to RF-DETR format.
+        # Empty list disables RF-DETR's built-in default augmentations.
+        aug_config          = to_rfdetr_aug_config(cfg.get("augmentation"))
 
         # Select device and matching PTL accelerator
         if torch.backends.mps.is_available():
@@ -257,6 +262,7 @@ def main(training_id: str) -> None:
             use_ema=True,
             early_stopping=early_stopping,
             early_stopping_patience=early_stopping_pat,
+            aug_config=aug_config or {},
         )
         module     = RFDETRModelModule(model.model_config, config)
         datamodule = RFDETRDataModule(model.model_config, config)
