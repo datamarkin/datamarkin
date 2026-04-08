@@ -199,7 +199,7 @@ def main():
     # ── Load model ────────────────────────────────────────────────────
     t0 = time.perf_counter()
     model, tokenizer, model_args = load_and_prepare_model(
-        model_id=args.model_id,
+        hf_model_id=args.model_id,
         dtype=args.dtype,
         backend="mlx",
     )
