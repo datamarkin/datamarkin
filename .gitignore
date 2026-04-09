@@ -6,3 +6,9 @@ __pycache__
 /output
 *rf-detr-*.pth
 *rf-detr-*.pt
+
+# Build artifacts
+/build
+/dist
+/.eggs
+*.spec.bak
