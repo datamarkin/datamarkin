@@ -1,9 +1,11 @@
 """EfficientTAM API (PyTorch + MPS backend)."""
 
 import gc
+import sys
 import threading
 import time
 import urllib.request
+from pathlib import Path
 
 import numpy as np
 import pixelflow as pf
@@ -48,6 +50,20 @@ def _ensure_loaded():
     ckpt = _model_path()
     if not ckpt.exists():
         raise FileNotFoundError("SAM model not downloaded. Use /api/sam/download_model first.")
+
+    if getattr(sys, "frozen", False):
+        # Hydra can't resolve configs via initialize_config_module because
+        # the package bytecode is in the PYZ archive. Pre-initialize with absolute path.
+        from hydra.core.global_hydra import GlobalHydra
+        if not GlobalHydra.instance().is_initialized():
+            from hydra import initialize_config_dir
+            cfg_dir = str(Path(sys._MEIPASS) / "efficient_track_anything")
+            initialize_config_dir(config_dir=cfg_dir, version_base="1.2")
+
+        # PyTorch JIT uses inspect.getsource() which fails in frozen apps
+        # (no .py source files, only .pyc). Disable JIT for model loading.
+        torch.jit._state.disable()
+
     from efficient_track_anything.build_efficienttam import build_efficienttam
     from efficient_track_anything.efficienttam_image_predictor import EfficientTAMImagePredictor
 

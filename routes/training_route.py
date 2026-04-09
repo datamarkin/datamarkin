@@ -141,12 +141,14 @@ def _launch_worker(training_id: str, db) -> None:
     log_path = TRAINING_JOBS_DIR / training_id / "worker.log"
     log_path.parent.mkdir(parents=True, exist_ok=True)
     log_file = open(log_path, "w")
+    if getattr(sys, "frozen", False):
+        cmd = [sys.executable, "worker", "--training-id", training_id]
+    else:
+        cmd = [sys.executable, str(APP_DIR / "scripts" / "training_worker.py"),
+               "--training-id", training_id]
+
     proc = subprocess.Popen(
-        [sys.executable, str(APP_DIR / "scripts" / "training_worker.py"),
-         "--training-id", training_id],
-        cwd=str(APP_DIR),
-        stdout=log_file,
-        stderr=log_file,
+        cmd, cwd=str(APP_DIR), stdout=log_file, stderr=log_file,
     )
     db.execute(
         "UPDATE trainings SET status='running', pid=?, updated_at=? WHERE id=?",

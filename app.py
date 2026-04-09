@@ -1,6 +1,7 @@
 import atexit
 import os
 import signal
+import sys
 
 from flask import Flask, abort, jsonify, redirect, render_template, request
 from db import get_db, init_db
@@ -22,7 +23,7 @@ from queries import (
     get_done_trainings_with_project, get_project_by_id, get_training,
     list_workflows, get_workflow_by_id, save_workflow, update_workflow, delete_workflow,
 )
-from config import APP_NAME, APP_VERSION, ALLOWED_EXTENSIONS, DB_PATH
+from config import APP_DIR, APP_NAME, APP_VERSION, ALLOWED_EXTENSIONS, DB_PATH
 
 
 def get_active_tab():
@@ -65,7 +66,14 @@ atexit.register(_kill_running_trainings)
 
 
 def create_app() -> Flask:
-    app = Flask(__name__)
+    if getattr(sys, "frozen", False):
+        app = Flask(
+            __name__,
+            template_folder=str(APP_DIR / "templates"),
+            static_folder=str(APP_DIR / "static"),
+        )
+    else:
+        app = Flask(__name__)
     app.config["MAX_CONTENT_LENGTH"] = 100 * 1024 * 1024  # 100 MB
 
     # Set Jinja2 globals
@@ -116,6 +124,14 @@ def create_app() -> Flask:
         from flask import jsonify as _jsonify, request as _request
         from tools.agentui_tools import DatamarkinLocalModel, METADATA as DM_METADATA
         agentui.register_tool(DatamarkinLocalModel, DM_METADATA)
+
+        # In frozen app, the blueprint's template/static paths derived from __file__
+        # are wrong because the module is loaded from the PYZ archive. Override with
+        # the actual filesystem paths where PyInstaller placed the data files.
+        if getattr(sys, "frozen", False):
+            agentui_static = APP_DIR / "agentui" / "static"
+            agentui_bp.template_folder = str(agentui_static)
+            agentui_bp.static_folder = str(agentui_static / "assets")
         agentui.set_header(
             'agentui_header.html',
             context_fn=lambda: {'saved_workflows': list_workflows()}

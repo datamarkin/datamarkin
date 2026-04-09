@@ -1,9 +1,9 @@
 #!/bin/bash
-# Create a .dmg installer from the py2app .app bundle.
+# Create a .dmg installer from the PyInstaller .app bundle.
 #
 # Usage:
-#   python build_macos.py py2app   # build .app first
-#   ./build_dmg.sh                 # then wrap in .dmg
+#   pyinstaller Datamarkin.spec   # build .app first
+#   ./build_dmg.sh                # then wrap in .dmg
 #
 # Requires: brew install create-dmg
 
@@ -14,7 +14,7 @@ DMG_NAME="Datamarkin-${VERSION}.dmg"
 APP_PATH="dist/Datamarkin.app"
 
 if [ ! -d "$APP_PATH" ]; then
-    echo "Error: $APP_PATH not found. Run 'python build_macos.py py2app' first."
+    echo "Error: $APP_PATH not found. Run 'pyinstaller Datamarkin.spec' first."
     exit 1
 fi
 

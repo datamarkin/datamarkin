@@ -16,8 +16,9 @@ import traceback
 from datetime import datetime, timezone
 from pathlib import Path
 
-# Add project root to path so we can import config
-sys.path.insert(0, str(Path(__file__).parent.parent))
+# Add project root to path so we can import config (not needed in frozen app)
+if not getattr(sys, "frozen", False):
+    sys.path.insert(0, str(Path(__file__).parent.parent))
 
 os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
 

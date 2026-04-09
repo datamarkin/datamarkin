@@ -1,6 +1,10 @@
+import sys
 from pathlib import Path
 
-APP_DIR = Path(__file__).parent
+if getattr(sys, "frozen", False):
+    APP_DIR = Path(sys._MEIPASS)
+else:
+    APP_DIR = Path(__file__).parent
 
 APP_NAME = "Datamarkin" #duuuh
 APP_VERSION = "0.1.0"
