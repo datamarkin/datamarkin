@@ -97,12 +97,12 @@
         return d.innerHTML;
     }
 
-    // ── SSE download progress ───────────────────────────────────────────────
+    // ── SSE download progress (lazy — only connects when downloads are active) ─
     const toasts = {};
     let evtSource = null;
 
     function connectSSE() {
-        if (evtSource) evtSource.close();
+        if (evtSource) return;
         evtSource = new EventSource('/api/downloads/stream');
         evtSource.onmessage = function(e) {
             const downloads = JSON.parse(e.data);
@@ -124,7 +124,7 @@
         };
         evtSource.onerror = function() {
             evtSource.close();
-            setTimeout(connectSSE, 3000);
+            evtSource = null;
         };
     }
 
@@ -152,7 +152,15 @@
         }
     }
 
-    connectSSE();
+    // Only connect if downloads are already active
+    fetch('/api/downloads/status')
+        .then(function(r) { return r.json(); })
+        .then(function(downloads) {
+            if (downloads.some(function(d) { return d.status !== 'idle'; })) connectSSE();
+        })
+        .catch(function() {});
+
+    window.startDownloadSSE = connectSSE;
 })();
 
 // ── Update check ────────────────────────────────────────────────────────────

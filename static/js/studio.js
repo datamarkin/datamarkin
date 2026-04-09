@@ -147,6 +147,7 @@ async function _ensureSAMModel() {
     }
     // Trigger download (idempotent if already in progress)
     await fetch('/api/sam/download_model', { method: 'POST' });
+    if (window.startDownloadSSE) window.startDownloadSSE();
     _showDownloadBanner(0);
     _pollModelDownload();
 }
@@ -889,6 +890,7 @@ document.getElementById('falcon-auto-annotate')?.addEventListener('click', async
     btn.classList.add('is-loading');
     btn.disabled = true;
     try {
+        if (window.startDownloadSSE) window.startDownloadSSE();
         const resp = await fetch('/api/falcon/auto_annotate', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
