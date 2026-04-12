@@ -2,26 +2,31 @@
 
 <div class="dm-wf-bar">
     <div class="dm-wf-bar-left">
-        <a href="/workflows" class="button is-app is-small" title="Workflows">
-            <span class="dm-wf-title">Workflows</span>
+        <a href="/" class="logo-button button is-small is-app" title="Datamarkin">
+            <img class="image is-32x32" src="{{ url_for('static', filename='images/logo.svg') }}" alt="">
         </a>
     </div>
     <div class="dm-wf-bar-center">
         <div class="dm-wf-actions">
-            <button class="button is-app is-small">
-                <span id="dm-btn-run-label">Run</span>
-            </button>
-            <button class="button is-app is-small">
-                <span id="dm-btn-run-label">Run</span>
-            </button>
-            <button class="button is-app is-small">
-                <span id="dm-btn-run-label">Run</span>
-            </button>
+            <a href="/projects" class="tab-pill {{ 'is-active' if active_tab == 'projects' }}">Projects</a>
+            <a href="/workflows" class="tab-pill {{ 'is-active' if active_tab == 'workflows' }}">Workflows</a>
+            <a href="/studio" class="tab-pill {{ 'is-active' if active_tab == 'studio' }}">Studio</a>
         </div>
+        {#        <div class="dm-wf-actions">#}
+        {#            <button class="button is-app is-small">#}
+        {#                <span id="dm-btn-run-label">Run</span>#}
+        {#            </button>#}
+        {#            <button class="button is-app is-small">#}
+        {#                <span id="dm-btn-run-label">Run</span>#}
+        {#            </button>#}
+        {#            <button class="button is-app is-small">#}
+        {#                <span id="dm-btn-run-label">Run</span>#}
+        {#            </button>#}
+        {#        </div>#}
     </div>
     <div class="dm-wf-bar-right">
         <button class="button is-app is-small" id="dm-btn-run">
-            <span id="dm-btn-run-label">Run</span>
+            <span id="dm-btn-run-label">Test run</span>
         </button>
         <button class="button is-app is-small" id="dm-btn-save">Save</button>
         <div class="dropdown" id="dm-load-dd">
@@ -192,7 +197,7 @@
         } else {
             btn.disabled = false;
             btn.classList.remove('is-loading');
-            label.textContent = 'Run';
+            label.textContent = 'Test run';
         }
     });
 
