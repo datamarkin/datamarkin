@@ -4,6 +4,10 @@
     box-sizing: border-box;
 }
 
+.logo-button {
+    padding: 3px;
+}
+
 html, body {
     height: 100%;
     overflow: hidden;
