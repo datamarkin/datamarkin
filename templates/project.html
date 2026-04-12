@@ -6,9 +6,12 @@
 {% block titlebar %}
     <div class="titlebar">
         <div class="titlebar-left">
+            <a href="/" class="logo-button button is-small is-app" title="Datamarkin">
+                <img class="image is-32x32" src="{{ url_for('static', filename='images/logo.svg') }}" alt="">
+            </a>
             <a href="/projects" class="button is-small is-app" title="Back">
                     <span class="icon is-small">
-                      {% include 'icons/chevron-left.svg' %}
+                      {% include 'icons/arrow-uturn-left.svg' %}
                     </span>
                 <span class="is-hidden-label">Projects</span>
             </a>
@@ -26,9 +29,6 @@
             </nav>
         </div>
         <div class="titlebar-right">
-            <button id="models-btn" class="button is-small is-app">
-                Models
-            </button>
             <button id="train-btn" class="button is-small is-app">
                 Train
             </button>
@@ -424,7 +424,8 @@
                                 <div class="select is-small">
                                     <select id="export-format-select">
                                         <option value="coco">COCO</option>
-                                        <option value="coco-mmdetection" disabled>COCO-MMDetection (coming soon)</option>
+                                        <option value="coco-mmdetection" disabled>COCO-MMDetection (coming soon)
+                                        </option>
                                         <option value="createml" disabled>CreateML (coming soon)</option>
                                         <option value="yolov12" disabled>YOLOv12 (coming soon)</option>
                                         <option value="yolov26" disabled>YOLOv26 (coming soon)</option>
@@ -466,11 +467,14 @@
                         <button id="training-modal-close" class="button is-text is-small">
                             <span class="icon is-small">{% include 'icons/x-mark.svg' %}</span>
                         </button>
-                        <button id="training-back-btn" class="button is-text is-small" style="display:none">← Back</button>
+                        <button id="training-back-btn" class="button is-text is-small" style="display:none">← Back
+                        </button>
                         <span id="training-modal-title" class="is-size-6 has-text-weight-semibold">Training runs</span>
                     </div>
                     <div style="display:flex;gap:8px;align-items:center">
-                        <button id="training-stop-btn" class="button is-small is-danger is-outlined" style="display:none">Stop</button>
+                        <button id="training-stop-btn" class="button is-small is-danger is-outlined"
+                                style="display:none">Stop
+                        </button>
                         <button id="training-start-btn" class="button is-small is-dark"
                                 {% if active_training %}disabled title="A training is already running"{% endif %}>
                             + Start Training
@@ -486,13 +490,14 @@
                             <div class="training-row" data-training-id="{{ t.id }}"
                                  style="cursor:pointer;padding:10px 8px;border-radius:4px;display:flex;align-items:center;gap:10px">
                                 <!-- Status dot -->
-                                <span class="training-status-dot" style="width:9px;height:9px;border-radius:50%;flex-shrink:0;background:
-                                    {%- if t.status == 'running' %}#48c774
-                                    {%- elif t.status == 'pending' %}#ffdd57
-                                    {%- elif t.status == 'done' %}#48c774
-                                    {%- elif t.status == 'failed' %}#f14668
-                                    {%- else %}#aaa{%- endif %};
-                                    {%- if t.status in ('running', 'pending') %}animation:pulse 1.5s infinite{%- endif %}">
+                                <span class="training-status-dot"
+                                      style="width:9px;height:9px;border-radius:50%;flex-shrink:0;background:
+                                              {%- if t.status == 'running' %}#48c774
+                                              {%- elif t.status == 'pending' %}#ffdd57
+                                              {%- elif t.status == 'done' %}#48c774
+                                              {%- elif t.status == 'failed' %}#f14668
+                                              {%- else %}#aaa{%- endif %};
+                                              {%- if t.status in ('running', 'pending') %}animation:pulse 1.5s infinite{%- endif %}">
                                 </span>
                                 <!-- Info -->
                                 <div style="flex:1;min-width:0">
@@ -515,7 +520,8 @@
                                 </span>
                                 <span class="has-text-grey is-size-6">›</span>
                             </div>
-                            {% if not loop.last %}<hr style="margin:2px 0">{% endif %}
+                            {% if not loop.last %}
+                                <hr style="margin:2px 0">{% endif %}
                         {% endfor %}
                     {% else %}
                         <p class="has-text-grey has-text-centered py-6 is-size-7">
@@ -530,8 +536,18 @@
         </div>
     </div>
     <style>
-        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.35} }
-        .training-row:hover { background: #faf4eb; }
+        @keyframes pulse {
+            0%, 100% {
+                opacity: 1
+            }
+            50% {
+                opacity: .35
+            }
+        }
+
+        .training-row:hover {
+            background: #faf4eb;
+        }
     </style>
 
     <script src="{{ url_for('static', filename='js/pipeline-builder.js') }}"></script>
@@ -756,7 +772,7 @@
             var lossHistory = [];  // batch-level, in-memory only
 
             // Open modal from both buttons
-            ['train-btn', 'models-btn'].forEach(function (id) {
+            ['train-btn'].forEach(function (id) {
                 document.getElementById(id).addEventListener('click', function () {
                     modal.classList.add('is-active');
                     if (activeTrainingId) startPolling(activeTrainingId);
@@ -766,6 +782,7 @@
             // Close
             document.getElementById('training-modal-close').addEventListener('click', closeModal);
             modal.querySelector('.modal-background').addEventListener('click', closeModal);
+
             function closeModal() {
                 modal.classList.remove('is-active');
                 stopPolling();
@@ -773,6 +790,7 @@
 
             // Back to list
             backBtn.addEventListener('click', showList);
+
             function showList() {
                 listView.style.display = '';
                 detailView.style.display = 'none';
@@ -810,7 +828,9 @@
                 // Epoch-level poll every 5s
                 epochTimer = setInterval(function () {
                     fetch('/api/training/' + id)
-                        .then(function (r) { return r.json(); })
+                        .then(function (r) {
+                            return r.json();
+                        })
                         .then(function (data) {
                             updateListRow(data);
                             if (currentId === id) renderDetail(data);
@@ -826,7 +846,9 @@
                 liveTimer = setInterval(function () {
                     if (currentId !== id) return;
                     fetch('/api/training/' + id + '/live')
-                        .then(function (r) { return r.json(); })
+                        .then(function (r) {
+                            return r.json();
+                        })
                         .then(function (live) {
                             if (live.batch_loss === undefined) return;
                             lossHistory.push(live.batch_loss);
@@ -840,13 +862,21 @@
             }
 
             function stopPolling() {
-                if (epochTimer) { clearInterval(epochTimer); epochTimer = null; }
-                if (liveTimer)  { clearInterval(liveTimer);  liveTimer  = null; }
+                if (epochTimer) {
+                    clearInterval(epochTimer);
+                    epochTimer = null;
+                }
+                if (liveTimer) {
+                    clearInterval(liveTimer);
+                    liveTimer = null;
+                }
             }
 
             function fetchAndRender(id) {
                 fetch('/api/training/' + id)
-                    .then(function (r) { return r.json(); })
+                    .then(function (r) {
+                        return r.json();
+                    })
                     .then(function (data) {
                         renderDetail(data);
                         if (data.status === 'running' || data.status === 'pending') {
@@ -860,18 +890,24 @@
 
             // ── Detail renderer ───────────────────────────────────────────────
             function renderDetail(t) {
-                var cfg     = parse(t.config);
+                var cfg = parse(t.config);
                 var metrics = parse(t.metrics);
                 var progress = parse(t.progress);
                 var history = metrics.history || [];
                 var created = (t.created_at || '').slice(0, 10);
-                var isLive  = t.status === 'running' || t.status === 'pending';
+                var isLive = t.status === 'running' || t.status === 'pending';
 
                 titleEl.textContent = 'Training — ' + created;
 
                 // ── Status line
-                var statusColor = {running:'#48c774',pending:'#ffdd57',done:'#48c774',failed:'#f14668',stopped:'#aaa'};
-                var dot = '<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:' + (statusColor[t.status]||'#aaa') + ';margin-right:6px' + (isLive ? ';animation:pulse 1.5s infinite' : '') + '"></span>';
+                var statusColor = {
+                    running: '#48c774',
+                    pending: '#ffdd57',
+                    done: '#48c774',
+                    failed: '#f14668',
+                    stopped: '#aaa'
+                };
+                var dot = '<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:' + (statusColor[t.status] || '#aaa') + ';margin-right:6px' + (isLive ? ';animation:pulse 1.5s infinite' : '') + '"></span>';
                 var statusLine = '<div style="margin-bottom:12px">' + dot + '<strong>' + esc(t.status) + '</strong><span class="is-size-7 has-text-grey ml-2">' + created + '</span></div>';
 
                 // ── Epoch progress bar (only while running)
@@ -879,7 +915,7 @@
                 if (isLive) {
                     var epoch = progress.epoch || 0;
                     var total = cfg.epochs || 0;
-                    var pct   = total > 0 ? Math.round(epoch / total * 100) : 0;
+                    var pct = total > 0 ? Math.round(epoch / total * 100) : 0;
                     progressHTML =
                         '<div class="mb-4">' +
                         '<div style="display:flex;justify-content:space-between;margin-bottom:4px">' +
@@ -891,11 +927,11 @@
                 }
 
                 // ── Accuracy panel (mAP@50 as friendly "model accuracy")
-                var mapVal    = progress.map !== undefined ? progress.map : (history.length > 0 ? (history[history.length-1].map || 0) : null);
-                var prevMapVal = history.length >= 2 ? (history[history.length-2].map || 0) : null;
+                var mapVal = progress.map !== undefined ? progress.map : (history.length > 0 ? (history[history.length - 1].map || 0) : null);
+                var prevMapVal = history.length >= 2 ? (history[history.length - 2].map || 0) : null;
                 var accuracyHTML = '';
                 if (mapVal !== null || history.length > 0 || t.status === 'done') {
-                    var pct100   = mapVal !== null ? (mapVal * 100) : 0;
+                    var pct100 = mapVal !== null ? (mapVal * 100) : 0;
                     var barColor = pct100 < 15 ? '#e76f51' : pct100 < 40 ? '#f4a261' : '#2a9d8f';
                     var trendHTML = '';
                     if (prevMapVal !== null && mapVal !== null) {
@@ -921,9 +957,9 @@
                 }
 
                 // ── Training curves
-                var hasEpochLoss  = history.length > 0 && history[0].loss !== undefined;
-                var hasEpochMap   = history.length > 0 && history[0].map  !== undefined;
-                var hasLiveLoss   = lossHistory.length > 0;
+                var hasEpochLoss = history.length > 0 && history[0].loss !== undefined;
+                var hasEpochMap = history.length > 0 && history[0].map !== undefined;
+                var hasLiveLoss = lossHistory.length > 0;
                 var chartsHTML = '';
                 if (hasLiveLoss || hasEpochLoss || hasEpochMap) {
                     var lossSection = '';
@@ -959,12 +995,12 @@
                 if (history.length > 0) {
                     var last = history[history.length - 1];
                     var techParts = [];
-                    if (last.loss       !== undefined) techParts.push('Loss: <strong>' + last.loss.toFixed(4) + '</strong>');
-                    if (last.map_50_95  !== undefined) techParts.push('mAP@50:95: <strong>' + (last.map_50_95 * 100).toFixed(1) + '%</strong>');
-                    if (last.map_75     !== undefined) techParts.push('mAP@75: <strong>' + (last.map_75 * 100).toFixed(1) + '%</strong>');
-                    if (last.recall     !== undefined) techParts.push('Recall: <strong>' + (last.recall * 100).toFixed(1) + '%</strong>');
-                    if (last.f1         !== undefined) techParts.push('F1: <strong>' + (last.f1 * 100).toFixed(1) + '%</strong>');
-                    if (last.precision  !== undefined) techParts.push('Precision: <strong>' + (last.precision * 100).toFixed(1) + '%</strong>');
+                    if (last.loss !== undefined) techParts.push('Loss: <strong>' + last.loss.toFixed(4) + '</strong>');
+                    if (last.map_50_95 !== undefined) techParts.push('mAP@50:95: <strong>' + (last.map_50_95 * 100).toFixed(1) + '%</strong>');
+                    if (last.map_75 !== undefined) techParts.push('mAP@75: <strong>' + (last.map_75 * 100).toFixed(1) + '%</strong>');
+                    if (last.recall !== undefined) techParts.push('Recall: <strong>' + (last.recall * 100).toFixed(1) + '%</strong>');
+                    if (last.f1 !== undefined) techParts.push('F1: <strong>' + (last.f1 * 100).toFixed(1) + '%</strong>');
+                    if (last.precision !== undefined) techParts.push('Precision: <strong>' + (last.precision * 100).toFixed(1) + '%</strong>');
                     if (last.ema_map_50 !== undefined) techParts.push('EMA mAP@50: <strong>' + (last.ema_map_50 * 100).toFixed(1) + '%</strong>');
                     var keys = Object.keys(last);
                     var tableRows = history.map(function (e, i) {
@@ -979,7 +1015,9 @@
                         '<div class="mt-2 mb-3 is-size-7" style="line-height:2">' + techParts.join(' &nbsp;·&nbsp; ') + '</div>' +
                         '<div style="overflow:auto;max-height:160px">' +
                         '<table class="table is-narrow is-fullwidth is-size-7" style="white-space:nowrap">' +
-                        '<thead><tr><th>#</th>' + keys.map(function (k) { return '<th>' + esc(k) + '</th>'; }).join('') + '</tr></thead>' +
+                        '<thead><tr><th>#</th>' + keys.map(function (k) {
+                            return '<th>' + esc(k) + '</th>';
+                        }).join('') + '</tr></thead>' +
                         '<tbody>' + tableRows + '</tbody></table></div></details>';
                 }
 
@@ -1018,23 +1056,34 @@
 
                 // Draw charts after DOM is updated
                 var lossEl = document.getElementById('tm-chart-loss');
-                var mapEl  = document.getElementById('tm-chart-map');
+                var mapEl = document.getElementById('tm-chart-map');
                 if (lossEl) {
                     var lossVals = lossHistory.length > 0
                         ? lossHistory
-                        : history.map(function (e) { return e.loss !== undefined ? e.loss : null; });
+                        : history.map(function (e) {
+                            return e.loss !== undefined ? e.loss : null;
+                        });
                     drawLineChart(lossEl, lossVals, '#4a90d9');
                 }
                 if (mapEl) {
-                    var mapVals = history.map(function (e) { return e.map !== undefined ? e.map : null; });
+                    var mapVals = history.map(function (e) {
+                        return e.map !== undefined ? e.map : null;
+                    });
                     drawLineChart(mapEl, mapVals, '#2a9d8f');
                 }
             }
 
             function drawLineChart(el, values, color) {
-                var nums = values.map(function (v) { return v === null || v === undefined ? NaN : +v; });
-                var valid = nums.filter(function (v) { return !isNaN(v); });
-                if (valid.length < 1) { el.innerHTML = '<text x="50%" y="50%" text-anchor="middle" font-size="10" fill="#aaa">waiting for data…</text>'; return; }
+                var nums = values.map(function (v) {
+                    return v === null || v === undefined ? NaN : +v;
+                });
+                var valid = nums.filter(function (v) {
+                    return !isNaN(v);
+                });
+                if (valid.length < 1) {
+                    el.innerHTML = '<text x="50%" y="50%" text-anchor="middle" font-size="10" fill="#aaa">waiting for data…</text>';
+                    return;
+                }
                 var W = 300, H = 60;
                 var mn = Math.min.apply(null, valid), mx = Math.max.apply(null, valid);
                 var pad = (mx - mn) * 0.15 || 0.01;
@@ -1047,20 +1096,29 @@
                 el.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
                 el.setAttribute('preserveAspectRatio', 'none');
                 // Subtle fill under the line
-                var fillPts = pts[0].split(',')[0] + ',' + H + ' ' + pts.join(' ') + ' ' + pts[pts.length-1].split(',')[0] + ',' + H;
+                var fillPts = pts[0].split(',')[0] + ',' + H + ' ' + pts.join(' ') + ' ' + pts[pts.length - 1].split(',')[0] + ',' + H;
                 el.innerHTML =
                     '<polygon points="' + fillPts + '" fill="' + color + '" fill-opacity="0.08"/>' +
                     '<polyline points="' + pts.join(' ') + '" fill="none" stroke="' + color + '" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/>' +
                     // last value dot
-                    '<circle cx="' + pts[pts.length-1].split(',')[0] + '" cy="' + pts[pts.length-1].split(',')[1] + '" r="2.5" fill="' + color + '"/>';
+                    '<circle cx="' + pts[pts.length - 1].split(',')[0] + '" cy="' + pts[pts.length - 1].split(',')[1] + '" r="2.5" fill="' + color + '"/>';
             }
 
             function updateListRow(t) {
                 var row = document.querySelector('.training-row[data-training-id="' + t.id + '"]');
                 if (!row) return;
                 var dot = row.querySelector('.training-status-dot');
-                var colorMap = {running:'#48c774',pending:'#ffdd57',done:'#48c774',failed:'#f14668',stopped:'#aaa'};
-                if (dot) { dot.style.background = colorMap[t.status] || '#aaa'; dot.style.animation = (t.status === 'running' || t.status === 'pending') ? 'pulse 1.5s infinite' : ''; }
+                var colorMap = {
+                    running: '#48c774',
+                    pending: '#ffdd57',
+                    done: '#48c774',
+                    failed: '#f14668',
+                    stopped: '#aaa'
+                };
+                if (dot) {
+                    dot.style.background = colorMap[t.status] || '#aaa';
+                    dot.style.animation = (t.status === 'running' || t.status === 'pending') ? 'pulse 1.5s infinite' : '';
+                }
                 var epochEl = row.querySelector('.training-epoch');
                 if (epochEl) {
                     var progress = parse(t.progress);
@@ -1074,10 +1132,15 @@
             function parse(v) {
                 if (!v) return {};
                 if (typeof v === 'object') return v;
-                try { return JSON.parse(v); } catch (e) { return {}; }
+                try {
+                    return JSON.parse(v);
+                } catch (e) {
+                    return {};
+                }
             }
+
             function esc(s) {
-                return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+                return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
             }
 
             // ── Start / Stop ────────────────────────────────────────────────
@@ -1089,17 +1152,19 @@
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({project_id: _projectId}),
-                }).then(function (r) { return r.json(); })
-                .then(function (d) {
-                    if (d.training_id) {
-                        activeTrainingId = d.training_id;
-                        showDetail(d.training_id);
-                    } else {
-                        alert(d.error || 'Failed to start training');
-                        startBtn.disabled = false;
-                        startBtn.textContent = '+ Start Training';
-                    }
-                }).catch(function () {
+                }).then(function (r) {
+                    return r.json();
+                })
+                    .then(function (d) {
+                        if (d.training_id) {
+                            activeTrainingId = d.training_id;
+                            showDetail(d.training_id);
+                        } else {
+                            alert(d.error || 'Failed to start training');
+                            startBtn.disabled = false;
+                            startBtn.textContent = '+ Start Training';
+                        }
+                    }).catch(function () {
                     startBtn.disabled = false;
                     startBtn.textContent = '+ Start Training';
                 });
@@ -1108,8 +1173,12 @@
             stopBtn.addEventListener('click', function () {
                 if (!currentId) return;
                 fetch('/api/training/' + currentId + '/stop', {method: 'POST'})
-                    .then(function (r) { return r.json(); })
-                    .then(function () { fetchAndRender(currentId); });
+                    .then(function (r) {
+                        return r.json();
+                    })
+                    .then(function () {
+                        fetchAndRender(currentId);
+                    });
             });
         })();
 
@@ -1147,7 +1216,10 @@
                         }
                     } catch (e) {
                         console.error('Poll error:', e);
-                        if (++pollErrors >= 5) { clearInterval(poll); alert('Lost connection to server'); }
+                        if (++pollErrors >= 5) {
+                            clearInterval(poll);
+                            alert('Lost connection to server');
+                        }
                     }
                 }, 2000);
             } catch (e) {
