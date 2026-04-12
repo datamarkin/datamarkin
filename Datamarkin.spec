@@ -45,6 +45,15 @@ try:
 except Exception:
     pass
 
+# RF-DETR .py source files — TorchScript JIT needs source access to compile
+# functions like batch_dice_loss; bytecode-only (.pyc) bundles fail at runtime.
+try:
+    import rfdetr as _rfdetr
+    _rfdetr_dir = Path(_rfdetr.__path__[0])
+    datas.append((str(_rfdetr_dir), "rfdetr"))
+except ImportError:
+    pass
+
 # ── Hidden imports ───────────────────────────────────────────────────────────
 # Packages PyInstaller can't auto-detect (compiled extensions, dynamic imports)
 
@@ -62,6 +71,7 @@ hiddenimports = [
     "pytorch_lightning",
     "rfdetr", "rfdetr.training",
     "pixelflow",
+    "mozo",
     # MLX (Apple Silicon)
     "mlx", "mlx.core", "mlx.nn",
     # Geometry
@@ -96,6 +106,7 @@ hiddenimports = [
 hiddenimports += collect_submodules("torch")
 hiddenimports += collect_submodules("torchvision")
 hiddenimports += collect_submodules("rfdetr")
+hiddenimports += collect_submodules("mozo")
 hiddenimports += collect_submodules("mlx")
 
 try:

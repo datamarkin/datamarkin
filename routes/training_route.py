@@ -214,7 +214,7 @@ def training_start():
         "augmentation":  json.loads(project["augmentation"]  or "[]"),
         "preprocessing": json.loads(project["preprocessing"] or "[]"),
         "labels":        json.loads(project["labels"]        or "[]"),
-        "project_type":  project["type"],
+        "project_type":  {"object_detection": "detection", "instance_segmentation": "segmentation"}.get(project["type"], project["type"]),
     }
 
     db = get_db()

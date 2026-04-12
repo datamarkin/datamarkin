@@ -115,13 +115,16 @@ def predict_run():
 
     img_w, img_h = image.size
 
+    project_type = cfg.get("project_type", "detection")
+    project_type = {"object_detection": "detection", "instance_segmentation": "segmentation"}.get(project_type, project_type)
+
     try:
         model = model_manager.get_model(
             'rfdetr',
             training_id,
             checkpoint_path=training["model_path"],
             model_size=cfg.get("model_size", "base"),
-            project_type=cfg.get("project_type", "detection"),
+            project_type=project_type,
             resolution=cfg.get("resolution", 560),
         )
     except Exception as e:
@@ -163,13 +166,16 @@ def predict():
     if not labels:
         return jsonify({"error": "Training config has no labels"}), 400
 
+    project_type = cfg.get("project_type", "detection")
+    project_type = {"object_detection": "detection", "instance_segmentation": "segmentation"}.get(project_type, project_type)
+
     try:
         model = model_manager.get_model(
             'rfdetr',
             training_id,
             checkpoint_path=training["model_path"],
             model_size=cfg.get("model_size", "base"),
-            project_type=cfg.get("project_type", "detection"),
+            project_type=project_type,
             resolution=cfg.get("resolution", 560),
         )
     except Exception as e:
