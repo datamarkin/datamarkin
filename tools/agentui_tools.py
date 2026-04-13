@@ -87,6 +87,7 @@ class DatamarkinLocalModel(Tool):
             return False
 
         config = json.loads(training.get("config") or "{}")
+        class_names = [label["name"] for label in config.get("labels", [])]
 
         try:
             pil_image = self.inputs["image"].data
@@ -101,6 +102,7 @@ class DatamarkinLocalModel(Tool):
                 model_size=config.get("model_size", "base"),
                 project_type=config.get("project_type", "detection"),
                 resolution=config.get("resolution", 560),
+                class_names=class_names,
             )
 
             detections = model.predict(cv2_image, threshold=confidence_threshold)

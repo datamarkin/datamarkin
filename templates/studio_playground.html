@@ -74,10 +74,7 @@
 
         <div class="inference-results">
             <div class="inference-preview-wrap" id="preview-wrap" style="display:none">
-                <div style="position:relative; display:inline-block; max-width:100%;">
-                    <img id="preview-img" src="" alt="Preview" style="display:block; max-width:100%; height:auto;">
-                    <canvas id="overlay-canvas" style="position:absolute; top:0; left:0; pointer-events:none;"></canvas>
-                </div>
+                <img id="preview-img" src="" alt="Preview" style="display:block; max-width:100%; height:auto;">
             </div>
 
             <div id="empty-state" class="inference-empty-state">
@@ -92,7 +89,7 @@
                         <th>#</th>
                         <th>Class</th>
                         <th>Confidence</th>
-                        <th>{% if mode == 'workflow' %}BBox (x1, y1, x2, y2){% else %}BBox (x, y, w, h){% endif %}</th>
+                        <th>BBox (x1, y1, x2, y2)</th>
                     </tr>
                     </thead>
                     <tbody id="results-tbody"></tbody>
@@ -175,8 +172,6 @@
             const fileInput = document.getElementById('file-input');
             const previewImg = document.getElementById('preview-img');
             const previewWrap = document.getElementById('preview-wrap');
-            const canvas = document.getElementById('overlay-canvas');
-            const ctx = canvas.getContext('2d');
             const runBtn = document.getElementById('run-btn');
             const threshRange = document.getElementById('threshold-range');
             const threshDisp = document.getElementById('threshold-display');
@@ -218,11 +213,6 @@
                 reader.onload = e => {
                     selectedDataURI = e.target.result;
                     previewImg.src = selectedDataURI;
-                    previewImg.onload = () => {
-                        canvas.width = previewImg.offsetWidth;
-                        canvas.height = previewImg.offsetHeight;
-                        ctx.clearRect(0, 0, canvas.width, canvas.height);
-                    };
                     emptyState.style.display = 'none';
                     previewWrap.style.display = '';
                     resultsSection.style.display = 'none';
@@ -231,67 +221,15 @@
                 reader.readAsDataURL(file);
             }
 
-            function classColor(name) {
-                let hash = 0;
-                for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
-                const hue = Math.abs(hash) % 360;
-                return `hsl(${hue}, 70%, 50%)`;
-            }
-
-            function drawDetections(items, toPixelRect) {
-                canvas.width = previewImg.offsetWidth;
-                canvas.height = previewImg.offsetHeight;
-                ctx.clearRect(0, 0, canvas.width, canvas.height);
-                const W = canvas.width, H = canvas.height;
-
-                items.forEach(item => {
-                    const name = item.class_name || 'unknown';
-                    const color = classColor(name);
-                    const {px, py, pw, ph} = toPixelRect(item, W, H);
-
-                    if (item.segmentation && item.segmentation.length >= 4) {
-                        ctx.beginPath();
-                        ctx.moveTo(item.segmentation[0] * W, item.segmentation[1] * H);
-                        for (let i = 2; i < item.segmentation.length; i += 2) {
-                            ctx.lineTo(item.segmentation[i] * W, item.segmentation[i + 1] * H);
-                        }
-                        ctx.closePath();
-                        ctx.strokeStyle = color;
-                        ctx.lineWidth = 2;
-                        ctx.stroke();
-                        ctx.fillStyle = color.replace('50%)', '50%, 0.15)').replace('hsl(', 'hsla(');
-                        ctx.fill();
-                    } else {
-                        ctx.strokeStyle = color;
-                        ctx.lineWidth = 2;
-                        ctx.strokeRect(px, py, pw, ph);
-                    }
-
-                    const label = `${name} ${Math.round((item.confidence || 0) * 100)}%`;
-                    ctx.font = 'bold 11px system-ui';
-                    const tw = ctx.measureText(label).width;
-                    ctx.fillStyle = color;
-                    ctx.fillRect(px, py - 16, tw + 8, 16);
-                    ctx.fillStyle = '#fff';
-                    ctx.fillText(label, px + 4, py - 4);
-                });
-            }
-
-            function modelRect(obj, W, H) {
-                const [nx, ny, nw, nh] = obj.bbox;
-                return {px: nx * W, py: ny * H, pw: nw * W, ph: nh * H};
-            }
-
-            function showResults(items, formatBbox) {
+            function showResults(items) {
                 resultsTbody.innerHTML = '';
                 items.forEach((item, i) => {
                     const name = item.class_name || 'unknown';
-                    const color = classColor(name);
-                    const coords = formatBbox(item.bbox);
+                    const coords = item.bbox.map(v => Math.round(v)).join(', ');
                     const row = document.createElement('tr');
                     row.innerHTML = `
                 <td>${i + 1}</td>
-                <td><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${color};margin-right:5px;"></span>${name}</td>
+                <td>${name}</td>
                 <td>${item.confidence ? Math.round(item.confidence * 100) + '%' : '—'}</td>
                 <td style="font-family:monospace">${coords}</td>
             `;
@@ -310,8 +248,8 @@
                 const resp = await fetch('/api/predict/run', {method: 'POST', body: formData});
                 const data = await resp.json();
                 if (!resp.ok) throw new Error(data.error || 'Inference failed');
-                drawDetections(data.objects, modelRect);
-                showResults(data.objects, b => b.map(v => v.toFixed(3)).join(', '));
+                previewImg.src = data.annotated_image;
+                showResults(data.detections);
             }
 
             async function runWorkflow() {
@@ -344,25 +282,8 @@
                     }
                 }
 
-                if (outputImage) {
-                    previewImg.src = outputImage;
-                    await new Promise(r => { previewImg.onload = r; });
-                    canvas.width = previewImg.offsetWidth;
-                    canvas.height = previewImg.offsetHeight;
-                    ctx.clearRect(0, 0, canvas.width, canvas.height);
-                }
-
-                if (outputDetections) {
-                    const imgW = previewImg.naturalWidth;
-                    const imgH = previewImg.naturalHeight;
-                    const wfRect = (det, W, H) => {
-                        const [x1, y1, x2, y2] = det.bbox;
-                        const sx = W / imgW, sy = H / imgH;
-                        return {px: x1 * sx, py: y1 * sy, pw: (x2 - x1) * sx, ph: (y2 - y1) * sy};
-                    };
-                    if (!outputImage) drawDetections(outputDetections, wfRect);
-                    showResults(outputDetections, b => b.map(v => Math.round(v)).join(', '));
-                }
+                if (outputImage) previewImg.src = outputImage;
+                if (outputDetections) showResults(outputDetections);
 
                 if (!outputImage && !outputDetections) {
                     resultsSummary.textContent = 'Workflow produced no visual output';

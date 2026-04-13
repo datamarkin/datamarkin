@@ -1,10 +1,13 @@
+import base64
 import json
 import os
+from io import BytesIO
 
 os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
 
 import cv2
 import numpy as np
+import pixelflow as pf
 from flask import Blueprint, jsonify, request
 from PIL import Image
 
@@ -118,6 +121,8 @@ def predict_run():
     project_type = cfg.get("project_type", "detection")
     project_type = {"object_detection": "detection", "instance_segmentation": "segmentation"}.get(project_type, project_type)
 
+    class_names = [label["name"] for label in labels]
+
     try:
         model = model_manager.get_model(
             'rfdetr',
@@ -126,6 +131,7 @@ def predict_run():
             model_size=cfg.get("model_size", "base"),
             project_type=project_type,
             resolution=cfg.get("resolution", 560),
+            class_names=class_names,
         )
     except Exception as e:
         return jsonify({"error": f"Failed to load model: {e}"}), 500
@@ -135,8 +141,31 @@ def predict_run():
     except Exception as e:
         return jsonify({"error": f"Inference failed: {e}"}), 500
 
-    objects = detections_to_objects(detections, labels, img_w, img_h, class_name_key=True)
-    return jsonify({"objects": objects, "image_width": img_w, "image_height": img_h})
+    # Draw detections on image using pixelflow annotators
+    annotated = np.array(image)
+    if any(det.masks for det in detections):
+        annotated = pf.annotators.mask(annotated, detections)
+    annotated = pf.annotators.box(annotated, detections)
+    annotated = pf.annotators.label(annotated, detections)
+
+    buf = BytesIO()
+    Image.fromarray(annotated).save(buf, format="JPEG", quality=90)
+    annotated_b64 = f"data:image/jpeg;base64,{base64.b64encode(buf.getvalue()).decode()}"
+
+    result = []
+    for det in detections:
+        result.append({
+            "class_name": det.class_name,
+            "bbox": [float(x) for x in det.bbox],
+            "confidence": round(float(det.confidence), 4) if det.confidence is not None else None,
+        })
+
+    return jsonify({
+        "detections": result,
+        "annotated_image": annotated_b64,
+        "image_width": img_w,
+        "image_height": img_h,
+    })
 
 
 @predict_api.route("/api/predict", methods=["POST"])
@@ -166,6 +195,8 @@ def predict():
     if not labels:
         return jsonify({"error": "Training config has no labels"}), 400
 
+    class_names = [label["name"] for label in labels]
+
     project_type = cfg.get("project_type", "detection")
     project_type = {"object_detection": "detection", "instance_segmentation": "segmentation"}.get(project_type, project_type)
 
@@ -177,6 +208,7 @@ def predict():
             model_size=cfg.get("model_size", "base"),
             project_type=project_type,
             resolution=cfg.get("resolution", 560),
+            class_names=class_names,
         )
     except Exception as e:
         return jsonify({"error": f"Failed to load model: {e}"}), 500
