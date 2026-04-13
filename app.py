@@ -1,4 +1,5 @@
 import atexit
+import json
 import os
 import signal
 import sys
@@ -141,7 +142,7 @@ def create_app() -> Flask:
         # the agentui blueprint's cloud-proxy fallbacks when embedded here.
         @app.route("/agentui/api/workflows", methods=["GET", "POST"])
         def agentui_workflows():
-            import json
+
             if _request.method == "POST":
                 data = _request.get_json() or {}
                 row = save_workflow(
@@ -154,7 +155,7 @@ def create_app() -> Flask:
 
         @app.route("/agentui/api/workflows/<workflow_id>", methods=["GET", "PATCH", "DELETE"])
         def agentui_workflow(workflow_id):
-            import json
+
             if _request.method == "GET":
                 row = get_workflow_by_id(workflow_id)
                 if row is None:
@@ -221,17 +222,16 @@ def create_app() -> Flask:
 
     @app.route("/studio")
     def studio():
-        import json
         trainings = []
         for t in get_done_trainings_with_project():
             t["config"] = json.loads(t.get("config") or "{}")
             t["metrics"] = json.loads(t.get("metrics") or "{}")
             trainings.append(t)
-        return render_template("studio.html", trainings=trainings)
+        workflows = list_workflows()
+        return render_template("studio.html", trainings=trainings, workflows=workflows)
 
     @app.route("/studio/<training_id>")
     def studio_playground(training_id):
-        import json
         training = get_training(training_id)
         if not training or training["status"] != "done":
             abort(404)
@@ -239,7 +239,21 @@ def create_app() -> Flask:
         training["metrics"] = json.loads(training.get("metrics") or "{}")
         project = get_project_by_id(training["project_id"])
         project_name = project["name"] if project else "Unknown"
-        return render_template("studio_playground.html", training=training, project_name=project_name)
+        return render_template("studio_playground.html", mode="model", training=training, project_name=project_name, workflow=None)
+
+    @app.route("/studio/workflow/<workflow_id>")
+    def studio_workflow_playground(workflow_id):
+        workflow = get_workflow_by_id(workflow_id)
+        if not workflow:
+            abort(404)
+        workflow["workflow_json"] = json.loads(workflow.get("workflow_json") or "{}")
+        return render_template(
+            "studio_playground.html",
+            mode="workflow",
+            workflow=workflow,
+            training=None,
+            project_name=workflow["name"],
+        )
 
     @app.route("/inference")
     def inference_redirect():

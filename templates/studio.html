@@ -7,7 +7,7 @@
         <div class="container">
             <div class="content">
                 <h1 class="is-size-1">Studio</h1>
-                {% if trainings %}
+                {% if trainings or workflows %}
                 <div id="models" class="columns is-multiline">
                     {% for t in trainings %}
                     {% set cfg = t.config %}
@@ -40,11 +40,38 @@
                         </a>
                     </div>
                     {% endfor %}
+                    {% for w in workflows %}
+                    <div class="column is-6">
+                        <a title="{{ w.name | default('Workflow') }}" href="/studio/workflow/{{ w.id }}"
+                           class="media box box-with-border p-4 is-align-items-center">
+                            <figure class="media-left">
+                                <p class="image is-64x64"
+                                   style="display:flex; align-items:center; justify-content:center; background:#e9f0f7; border-radius:8px;">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="#888">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M7.5 21 3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" />
+                                    </svg>
+                                </p>
+                            </figure>
+                            <div class="media-content">
+                                <div class="content">
+                                    <p>
+                                        <strong>{{ w.name | default('Untitled Workflow') }}</strong>
+                                        <br>
+                                        <small class="has-text-grey">
+                                            workflow
+                                            {% if w.description %} · {{ w.description }}{% endif %}
+                                        </small>
+                                    </p>
+                                </div>
+                            </div>
+                        </a>
+                    </div>
+                    {% endfor %}
                 </div>
                 {% else %}
                 <div style="text-align:center; padding:3rem 1rem;">
                     <p style="color:#999; font-size:0.95rem;">
-                        No trained models yet. Train a model in a project first.
+                        No trained models or workflows yet. Train a model in a project or create a workflow first.
                     </p>
                     <a href="/projects" class="button is-small is-app" style="margin-top:1rem;">Go to Projects</a>
                 </div>

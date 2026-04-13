@@ -31,13 +31,18 @@
     <div class="inference-page">
         <div class="inference-controls">
             <h2 class="inference-heading">{{ project_name }}</h2>
+            {% if mode == 'model' %}
             <p class="help" style="margin-bottom:1rem; color:#888;">
                 {{ training.config.project_type | default('detection') }} ·
                 {{ training.config.model_size | default('base') }} ·
                 {{ training.config.resolution | default(560) }}px
                 {% if training.metrics.best_mAP %} · mAP {{ "%.1f"|format(training.metrics.best_mAP) }}%{% endif %}
             </p>
+            {% elif workflow.description %}
+            <p class="help" style="margin-bottom:1rem; color:#888;">{{ workflow.description }}</p>
+            {% endif %}
 
+            {% if mode == 'model' %}
             <div class="field">
                 <label class="label is-small">Threshold: <span id="threshold-display">0.50</span></label>
                 <div class="control">
@@ -45,6 +50,7 @@
                            type="range" min="0.05" max="0.95" step="0.05" value="0.50">
                 </div>
             </div>
+            {% endif %}
 
             <div class="field">
                 <label class="label is-small">Image</label>
@@ -58,7 +64,7 @@
             <div class="field">
                 <div class="control">
                     <button class="button is-dark is-small is-fullwidth" id="run-btn">
-                        Run Inference
+                        Run
                     </button>
                 </div>
             </div>
@@ -75,7 +81,7 @@
             </div>
 
             <div id="empty-state" class="inference-empty-state">
-                <p class="has-text-grey-light">Drop an image and run inference to see results</p>
+                <p class="has-text-grey-light">Drop an image and click Run to see results</p>
             </div>
 
             <div id="results-section" style="display:none; margin-top: 1rem;">
@@ -86,7 +92,7 @@
                         <th>#</th>
                         <th>Class</th>
                         <th>Confidence</th>
-                        <th>BBox (x, y, w, h)</th>
+                        <th>{% if mode == 'workflow' %}BBox (x1, y1, x2, y2){% else %}BBox (x, y, w, h){% endif %}</th>
                     </tr>
                     </thead>
                     <tbody id="results-tbody"></tbody>
@@ -161,7 +167,9 @@
 
     <script>
         (function () {
-            const TRAINING_ID = "{{ training.id }}";
+            const MODE = "{{ mode }}";
+            const TRAINING_ID = "{{ training.id if training else '' }}";
+            const WORKFLOW_JSON = {{ (workflow.workflow_json | tojson) if workflow else '{}' }};
 
             const dropZone = document.getElementById('drop-zone');
             const fileInput = document.getElementById('file-input');
@@ -179,10 +187,13 @@
             const resultsSummary = document.getElementById('results-summary');
 
             let selectedFile = null;
+            let selectedDataURI = null;
 
-            threshRange.addEventListener('input', () => {
-                threshDisp.textContent = parseFloat(threshRange.value).toFixed(2);
-            });
+            if (threshRange) {
+                threshRange.addEventListener('input', () => {
+                    threshDisp.textContent = parseFloat(threshRange.value).toFixed(2);
+                });
+            }
 
             dropZone.addEventListener('click', () => fileInput.click());
             dropZone.addEventListener('dragover', e => {
@@ -205,7 +216,8 @@
                 document.getElementById('drop-zone-text').textContent = file.name;
                 const reader = new FileReader();
                 reader.onload = e => {
-                    previewImg.src = e.target.result;
+                    selectedDataURI = e.target.result;
+                    previewImg.src = selectedDataURI;
                     previewImg.onload = () => {
                         canvas.width = previewImg.offsetWidth;
                         canvas.height = previewImg.offsetHeight;
@@ -226,24 +238,22 @@
                 return `hsl(${hue}, 70%, 50%)`;
             }
 
-            function drawDetections(objects) {
+            function drawDetections(items, toPixelRect) {
                 canvas.width = previewImg.offsetWidth;
                 canvas.height = previewImg.offsetHeight;
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
+                const W = canvas.width, H = canvas.height;
 
-                const W = canvas.width;
-                const H = canvas.height;
+                items.forEach(item => {
+                    const name = item.class_name || 'unknown';
+                    const color = classColor(name);
+                    const {px, py, pw, ph} = toPixelRect(item, W, H);
 
-                objects.forEach(obj => {
-                    const color = classColor(obj.class_name);
-                    const [nx, ny, nw, nh] = obj.bbox;
-                    const px = nx * W, py = ny * H, pw = nw * W, ph = nh * H;
-
-                    if (obj.segmentation && obj.segmentation.length >= 4) {
+                    if (item.segmentation && item.segmentation.length >= 4) {
                         ctx.beginPath();
-                        ctx.moveTo(obj.segmentation[0] * W, obj.segmentation[1] * H);
-                        for (let i = 2; i < obj.segmentation.length; i += 2) {
-                            ctx.lineTo(obj.segmentation[i] * W, obj.segmentation[i + 1] * H);
+                        ctx.moveTo(item.segmentation[0] * W, item.segmentation[1] * H);
+                        for (let i = 2; i < item.segmentation.length; i += 2) {
+                            ctx.lineTo(item.segmentation[i] * W, item.segmentation[i + 1] * H);
                         }
                         ctx.closePath();
                         ctx.strokeStyle = color;
@@ -257,7 +267,7 @@
                         ctx.strokeRect(px, py, pw, ph);
                     }
 
-                    const label = `${obj.class_name} ${Math.round((obj.confidence || 0) * 100)}%`;
+                    const label = `${name} ${Math.round((item.confidence || 0) * 100)}%`;
                     ctx.font = 'bold 11px system-ui';
                     const tw = ctx.measureText(label).width;
                     ctx.fillStyle = color;
@@ -267,22 +277,97 @@
                 });
             }
 
-            function showResults(objects) {
+            function modelRect(obj, W, H) {
+                const [nx, ny, nw, nh] = obj.bbox;
+                return {px: nx * W, py: ny * H, pw: nw * W, ph: nh * H};
+            }
+
+            function showResults(items, formatBbox) {
                 resultsTbody.innerHTML = '';
-                objects.forEach((obj, i) => {
-                    const color = classColor(obj.class_name);
-                    const [x, y, w, h] = obj.bbox.map(v => v.toFixed(3));
+                items.forEach((item, i) => {
+                    const name = item.class_name || 'unknown';
+                    const color = classColor(name);
+                    const coords = formatBbox(item.bbox);
                     const row = document.createElement('tr');
                     row.innerHTML = `
                 <td>${i + 1}</td>
-                <td><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${color};margin-right:5px;"></span>${obj.class_name}</td>
-                <td>${obj.confidence ? Math.round(obj.confidence * 100) + '%' : '—'}</td>
-                <td style="font-family:monospace">${x}, ${y}, ${w}, ${h}</td>
+                <td><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${color};margin-right:5px;"></span>${name}</td>
+                <td>${item.confidence ? Math.round(item.confidence * 100) + '%' : '—'}</td>
+                <td style="font-family:monospace">${coords}</td>
             `;
                     resultsTbody.appendChild(row);
                 });
-                resultsSummary.textContent = `${objects.length} detection${objects.length !== 1 ? 's' : ''}`;
+                resultsSummary.textContent = `${items.length} detection${items.length !== 1 ? 's' : ''}`;
                 resultsSection.style.display = '';
+            }
+
+            async function runModel() {
+                const formData = new FormData();
+                formData.append('file', selectedFile);
+                formData.append('training_id', TRAINING_ID);
+                formData.append('threshold', threshRange.value);
+
+                const resp = await fetch('/api/predict/run', {method: 'POST', body: formData});
+                const data = await resp.json();
+                if (!resp.ok) throw new Error(data.error || 'Inference failed');
+                drawDetections(data.objects, modelRect);
+                showResults(data.objects, b => b.map(v => v.toFixed(3)).join(', '));
+            }
+
+            async function runWorkflow() {
+                const wf = JSON.parse(JSON.stringify(WORKFLOW_JSON));
+                const nodes = wf.nodes || [];
+                const mediaNode = nodes.find(n => n.data && (n.data.toolType === 'MediaInput' || n.data.nodeType === 'MediaInput'));
+                if (!mediaNode) throw new Error('This workflow has no image input (MediaInput node).');
+                if (!mediaNode.data.parameters) mediaNode.data.parameters = {};
+                mediaNode.data.parameters.data = selectedDataURI;
+
+                const resp = await fetch('/agentui/api/workflow/execute', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({workflow: wf}),
+                });
+                const data = await resp.json();
+                if (!data.success) throw new Error(data.error || 'Workflow execution failed');
+
+                let outputImage = null;
+                let outputDetections = null;
+
+                for (const [, result] of Object.entries(data.results)) {
+                    if (!result.is_terminal) continue;
+                    for (const [, value] of Object.entries(result.outputs)) {
+                        if (typeof value === 'string' && value.startsWith('data:image/')) {
+                            outputImage = value;
+                        } else if (Array.isArray(value) && value.length > 0 && value[0].bbox) {
+                            outputDetections = value;
+                        }
+                    }
+                }
+
+                if (outputImage) {
+                    previewImg.src = outputImage;
+                    await new Promise(r => { previewImg.onload = r; });
+                    canvas.width = previewImg.offsetWidth;
+                    canvas.height = previewImg.offsetHeight;
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                }
+
+                if (outputDetections) {
+                    const imgW = previewImg.naturalWidth;
+                    const imgH = previewImg.naturalHeight;
+                    const wfRect = (det, W, H) => {
+                        const [x1, y1, x2, y2] = det.bbox;
+                        const sx = W / imgW, sy = H / imgH;
+                        return {px: x1 * sx, py: y1 * sy, pw: (x2 - x1) * sx, ph: (y2 - y1) * sy};
+                    };
+                    if (!outputImage) drawDetections(outputDetections, wfRect);
+                    showResults(outputDetections, b => b.map(v => Math.round(v)).join(', '));
+                }
+
+                if (!outputImage && !outputDetections) {
+                    resultsSummary.textContent = 'Workflow produced no visual output';
+                    resultsSection.style.display = '';
+                }
             }
 
             runBtn.addEventListener('click', async () => {
@@ -295,22 +380,14 @@
                 runBtn.classList.add('is-loading');
                 runBtn.disabled = true;
 
-                const formData = new FormData();
-                formData.append('file', selectedFile);
-                formData.append('training_id', TRAINING_ID);
-                formData.append('threshold', threshRange.value);
-
                 try {
-                    const resp = await fetch('/api/predict/run', {method: 'POST', body: formData});
-                    const data = await resp.json();
-                    if (!resp.ok) {
-                        showError(data.error || 'Inference failed');
-                        return;
+                    if (MODE === 'model') {
+                        await runModel();
+                    } else {
+                        await runWorkflow();
                     }
-                    drawDetections(data.objects);
-                    showResults(data.objects);
                 } catch (e) {
-                    showError('Request failed: ' + e.message);
+                    showError(e.message);
                 } finally {
                     runBtn.classList.remove('is-loading');
                     runBtn.disabled = false;
