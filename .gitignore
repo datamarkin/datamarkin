@@ -1,6 +1,6 @@
 datamarkin.com/*
 /.idea
-.DS_Store
+**/.DS_Store
 __pycache__
 /experiments/rf-detr/output
 /output
@@ -12,3 +12,4 @@ __pycache__
 /dist
 /.eggs
 *.spec.bak
+/agentui
