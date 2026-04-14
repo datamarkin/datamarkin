@@ -4,7 +4,7 @@ import os
 import signal
 import sys
 
-from flask import Flask, abort, jsonify, redirect, render_template, request
+from flask import Flask, abort, jsonify, render_template, request
 from db import get_db, init_db
 from routes.projects_page_route import (
     projects_page_route, project_new_page_route, project_upload_route,
@@ -35,7 +35,7 @@ def get_active_tab():
 
     if path in ("/", "/projects"):
         return "projects"
-    elif path in ("/workflows",) or path.startswith("/agentui"):
+    elif path.startswith("/agentui"):
         return "workflows"
     elif path.startswith("/studio"):
         return "studio"
@@ -249,10 +249,6 @@ def create_app() -> Flask:
             training=None,
             project_name=workflow["name"],
         )
-
-    @app.route("/workflows")
-    def workflows():
-        return redirect("/agentui/")
 
     @app.route("/files/<file_id>")
     def serve_file(file_id):
