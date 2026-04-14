@@ -5,7 +5,7 @@
 {% block titlebar %}
     <div class="titlebar">
         <div class="titlebar-left">
-            <a href="/project/{{ project.id }}" class="button is-small is-app" title="Back to project">
+            <a href="{{ url_for('project', project_id=project.id) }}" class="button is-small is-app" title="Back to project">
                 <span class="icon is-small">
                     {% include 'icons/chevron-left.svg' %}
                 </span>
@@ -44,12 +44,12 @@
         <div class="titlebar-right" style="text-align: right;">
             <span class="is-size-7 has-text-weight-bold"
                   style="margin-left: 8px;">{{ current_index + 1 }} / {{ files|length }}</span>
-            <a href="/project/{{ project.id }}" class="button is-small is-app" title="Back to project">
+            <a href="{{ url_for('project', project_id=project.id) }}" class="button is-small is-app" title="Back to project">
                 <span class="icon is-small">
                     {% include 'icons/exclamation-circle.svg' %}
                 </span>
             </a>
-            <a href="/project/{{ project.id }}" class="button is-small is-app" title="Back to project">
+            <a href="{{ url_for('project', project_id=project.id) }}" class="button is-small is-app" title="Back to project">
                 <span class="icon is-small">
                     {% include 'icons/trash.svg' %}
                 </span>
@@ -110,7 +110,7 @@
             <div class="thumb-grid">
                 {% for file in files %}
                     {% set has_annot = file.annotations and file.annotations not in ('', '[]', 'null') %}
-                    <a href="/project/{{ project.id }}/{{ file.id }}"
+                    <a href="{{ url_for('project_image', project_id=project.id, file_id=file.id) }}"
                        class="thumb-item {{ 'is-active' if file.id == current_file.id }}">
                         <img src="{{ url_for('serve_file', file_id=file.id, key='small') }}" alt="{{ file.filename }}"
                              loading="lazy">

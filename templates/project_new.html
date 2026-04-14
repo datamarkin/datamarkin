@@ -9,7 +9,7 @@
                 <h1 class="is-size-3">Create a new project</h1>
             </div>
 
-            <form method="POST" action="/project/new">
+            <form method="POST" action="{{ url_for('project_new') }}">
                 <div class="field">
                     <label class="label">Name</label>
                     <div class="control">
@@ -47,7 +47,7 @@
                 <div class="field">
                     <div class="control">
                         <button type="submit" class="button is-app">Create project</button>
-                        <a href="/projects" class="button is-light ml-2">Cancel</a>
+                        <a href="{{ url_for('projects') }}" class="button is-light ml-2">Cancel</a>
                     </div>
                 </div>
             </form>

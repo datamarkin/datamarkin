@@ -6,10 +6,10 @@
 {% block titlebar %}
     <div class="titlebar">
         <div class="titlebar-left">
-            <a href="/" class="logo-button button is-small is-app" title="Datamarkin">
+            <a href="{{ url_for('projects') }}" class="logo-button button is-small is-app" title="Datamarkin">
                 <img class="image is-32x32" src="{{ url_for('static', filename='images/logo.svg') }}" alt="">
             </a>
-            <a href="/projects" class="button is-small is-app" title="Back">
+            <a href="{{ url_for('projects') }}" class="button is-small is-app" title="Back">
                     <span class="icon is-small">
                       {% include 'icons/arrow-uturn-left.svg' %}
                     </span>
@@ -91,7 +91,7 @@
             {% for file in files %}
                 {% set has_annot = file.annotations and file.annotations not in ('', '[]', 'null') %}
                 <div class="column is-2-fullhd is-3-desktop is-4-tablet is-6-mobile file-card">
-                    <a href="/project/{{ project.id }}/{{ file.id }}" class="card">
+                    <a href="{{ url_for('project_image', project_id=project.id, file_id=file.id) }}" class="card">
                         <div class="card-image">
                             <figure class="image is-4by3">
                                 <img src="{{ url_for('serve_file', file_id=file.id, key='small') }}"
@@ -440,7 +440,7 @@
                                     splits as a ZIP archive.</p>
                             </div>
                             <a id="export-coco-btn"
-                               href="/api/projects/{{ project.id }}/export/coco"
+                               href="{{ url_for('training_api.export_coco', project_id=project.id) }}"
                                class="button is-small is-dark ml-4"
                                style="flex-shrink:0">
                                 <span class="icon is-small">

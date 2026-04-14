@@ -10,7 +10,7 @@
                 <div id="projects" class="columns is-multiline project-items">
 
                     <div class="column is-6 project-item">
-                        <a title="Project name" href="/project/new"
+                        <a title="Project name" href="{{ url_for('project_new') }}"
                            class="media box box-with-border p-4 is-align-items-center">
                             <figure class="media-left">
                                 <p class="image is-64x64">
@@ -37,7 +37,7 @@
                     </div>
                     {% for project in projects %}
                         <div class="column is-6 project-item">
-                            <a title="{{ project.name }}" href="/project/{{ project.id }}"
+                            <a title="{{ project.name }}" href="{{ url_for('project', project_id=project.id) }}"
                                class="media box box-with-border p-4 is-align-items-center">
                                 <figure class="media-left">
                                         {% if project.thumb_file_id %}
@@ -60,7 +60,7 @@
                 </div>
                 <hr>
                 <div class="buttons is-centered">
-                    <a href="/" class="button is-small is-app">
+                    <a href="{{ url_for('projects') }}" class="button is-small is-app">
                         <span class="icon is-small">
                             {% include 'icons/academic-cap.svg' %}
                         </span>

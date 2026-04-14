@@ -5,10 +5,10 @@
 {% block titlebar %}
     <div class="titlebar">
         <div class="titlebar-left">
-            <a href="/" class="logo-button button is-small is-app" title="Datamarkin">
+            <a href="{{ url_for('projects') }}" class="logo-button button is-small is-app" title="Datamarkin">
                 <img class="image is-32x32" src="{{ url_for('static', filename='images/logo.svg') }}" alt="">
             </a>
-            <a href="/studio" class="button is-small is-app" title="Back">
+            <a href="{{ url_for('studio') }}" class="button is-small is-app" title="Back">
                     <span class="icon is-small">
                       {% include 'icons/arrow-uturn-left.svg' %}
                     </span>
@@ -17,9 +17,9 @@
         </div>
         <div class="titlebar-center">
             <nav class="tab-pills">
-                <a href="/projects" class="tab-pill {{ 'is-active' if active_tab == 'projects' }}">Projects</a>
-                <a href="/agentui/" class="tab-pill {{ 'is-active' if active_tab == 'workflows' }}">Workflows</a>
-                <a href="/studio" class="tab-pill {{ 'is-active' if active_tab == 'studio' }}">Studio</a>
+                <a href="{{ url_for('projects') }}" class="tab-pill {{ 'is-active' if active_tab == 'projects' }}">Projects</a>
+                <a href="{{ url_for('agentui.serve_app') }}" class="tab-pill {{ 'is-active' if active_tab == 'workflows' }}">Workflows</a>
+                <a href="{{ url_for('studio') }}" class="tab-pill {{ 'is-active' if active_tab == 'studio' }}">Studio</a>
             </nav>
         </div>
         <div class="titlebar-right">

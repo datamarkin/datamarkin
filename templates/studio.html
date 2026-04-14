@@ -13,7 +13,7 @@
                     {% set cfg = t.config %}
                     {% set metrics = t.metrics %}
                     <div class="column is-6">
-                        <a title="{{ t.project_name | default('Model') }}" href="/studio/{{ t.id }}"
+                        <a title="{{ t.project_name | default('Model') }}" href="{{ url_for('studio_playground', training_id=t.id) }}"
                            class="media box box-with-border p-4 is-align-items-center">
                             <figure class="media-left">
                                 <p class="image is-64x64"
@@ -42,7 +42,7 @@
                     {% endfor %}
                     {% for w in workflows %}
                     <div class="column is-6">
-                        <a title="{{ w.name | default('Workflow') }}" href="/studio/workflow/{{ w.id }}"
+                        <a title="{{ w.name | default('Workflow') }}" href="{{ url_for('studio_workflow_playground', workflow_id=w.id) }}"
                            class="media box box-with-border p-4 is-align-items-center">
                             <figure class="media-left">
                                 <p class="image is-64x64"
@@ -73,7 +73,7 @@
                     <p style="color:#999; font-size:0.95rem;">
                         No trained models or workflows yet. Train a model in a project or create a workflow first.
                     </p>
-                    <a href="/projects" class="button is-small is-app" style="margin-top:1rem;">Go to Projects</a>
+                    <a href="{{ url_for('projects') }}" class="button is-small is-app" style="margin-top:1rem;">Go to Projects</a>
                 </div>
                 {% endif %}
             </div>
