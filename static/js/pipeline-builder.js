@@ -3,7 +3,6 @@
  * Used by the project settings modal in project.html
  */
 
-var _projectId = '';
 var _pipelineSaveTimer = null;
 
 const PP_CATALOG = [
@@ -321,7 +320,7 @@ function schedulePipelineSave(pipelineEl, isAug) {
     clearTimeout(_pipelineSaveTimer);
     _pipelineSaveTimer = setTimeout(function() {
         var key = isAug ? 'augmentation' : 'preprocessing';
-        fetch('/project/' + _projectId + '/pipeline', {
+        fetch('/project/' + PAGE_CONFIG.projectId + '/pipeline', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ key: key, pipeline: serializePipeline(rootEl, isAug) }),
