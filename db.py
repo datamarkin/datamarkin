@@ -52,6 +52,7 @@ def init_db() -> None:
             split           TEXT,
             sort_order      INTEGER DEFAULT 0,
             annotations     TEXT,
+            analyzed_labels TEXT,
             created_at      TEXT NOT NULL,
             updated_at      TEXT NOT NULL
         );
@@ -79,6 +80,13 @@ def init_db() -> None:
             updated_at    TEXT NOT NULL
         );
     """)
+
+    # Migration: add analyzed_labels column for existing databases
+    try:
+        conn.execute("ALTER TABLE files ADD COLUMN analyzed_labels TEXT")
+    except sqlite3.OperationalError:
+        pass  # column already exists
+
     conn.close()
 
 

@@ -46,6 +46,8 @@ class File(dict):
         self.sort_order = self.get("sort_order")
         self.created_at = self.get("created_at")
         self.updated_at = self.get("updated_at")
-        # JSON column — parse and keep dict in sync
+        # JSON columns — parse and keep dict in sync
         self.annotations = json.loads(self["annotations"]) if self.get("annotations") else None
         self["annotations"] = self.annotations
+        self.analyzed_labels = json.loads(self["analyzed_labels"]) if self.get("analyzed_labels") else []
+        self["analyzed_labels"] = self.analyzed_labels

@@ -13,7 +13,7 @@ from PIL import Image as PILImage
 from pixelflow.assets import DownloadError
 
 from config import DATA_DIR, file_path as get_file_path
-from queries import get_file_by_id, get_project_by_id, get_project_files, update_file_annotations
+from queries import get_file_by_id, get_project_by_id, get_project_files, update_file_annotations, update_file_analyzed_labels
 from routes.download_api import update_download_state, clear_download_state
 from routes.predict_route import mask_to_norm_polygon
 from utils.dedup import deduplicate_objects
@@ -184,17 +184,35 @@ def _get_existing_objects(file_row):
         return []
 
 
-def _auto_annotate_file(file_row, labels):
-    """Run falcon-perception on one file for all labels. Returns (new_objects, all_objects)."""
+def _auto_annotate_file(file_row, labels, force=False):
+    """Run falcon-perception on one file for un-analyzed labels.
+
+    Returns (new_objects, all_objects, analyzed_label_names).
+    """
+    existing = _get_existing_objects(file_row)
+    label_name_to_id = {l["name"].lower(): l["id"] for l in labels}
+
+    # Determine which labels still need analysis
+    already_analyzed = set()
+    if not force:
+        raw_al = file_row.get("analyzed_labels")
+        if raw_al:
+            try:
+                already_analyzed = set(json.loads(raw_al) if isinstance(raw_al, str) else raw_al)
+            except (json.JSONDecodeError, TypeError):
+                already_analyzed = set()
+
+    labels_to_run = [l for l in labels if l["name"].lower() not in already_analyzed]
+
+    if not labels_to_run:
+        return [], existing, sorted(already_analyzed)
+
     image_path = get_file_path(file_row["filename"])
     pil_image = PILImage.open(image_path).convert("RGB")
     img_w, img_h = pil_image.size
 
-    existing = _get_existing_objects(file_row)
-    label_name_to_id = {l["name"].lower(): l["id"] for l in labels}
-
     all_new = []
-    for label in labels:
+    for label in labels_to_run:
         detections = _predict_single(pil_image, label["name"])
         objects = _detections_to_norm_objects(detections, label_name_to_id, img_w, img_h)
         all_new.extend(objects)
@@ -205,7 +223,8 @@ def _auto_annotate_file(file_row, labels):
 
     new_objects = deduplicate_objects(all_new, existing)
     merged = existing + new_objects
-    return new_objects, merged
+    newly_analyzed = already_analyzed | {l["name"].lower() for l in labels_to_run}
+    return new_objects, merged, sorted(newly_analyzed)
 
 
 # ── Endpoints ────────────────────────────────────────────────────────────────
@@ -227,6 +246,7 @@ def falcon_auto_annotate():
     body = request.get_json(silent=True) or {}
     file_id = body.get("file_id")
     project_id = body.get("project_id")
+    force = body.get("force", False)
 
     if not file_id or not project_id:
         return jsonify({"error": "file_id and project_id are required"}), 400
@@ -246,11 +266,12 @@ def falcon_auto_annotate():
     try:
         with _lock:
             _ensure_loaded()
-            new_objects, merged = _auto_annotate_file(file_row, labels)
+            new_objects, merged, analyzed = _auto_annotate_file(file_row, labels, force=force)
     except DownloadError as e:
         return jsonify({"error": f"Model download failed: {e}"}), 503
 
     update_file_annotations(file_id, json.dumps({"objects": merged}))
+    update_file_analyzed_labels(file_id, json.dumps(analyzed))
     return jsonify({"new_count": len(new_objects), "objects": new_objects})
 
 
@@ -261,6 +282,7 @@ def falcon_auto_annotate_batch():
     body = request.get_json(silent=True) or {}
     project_id = body.get("project_id")
     target = body.get("target", "all")
+    force = body.get("force", False)
 
     if not project_id:
         return jsonify({"error": "project_id is required"}), 400
@@ -286,6 +308,25 @@ def falcon_auto_annotate_batch():
     if target == "pending":
         files = [f for f in files if not f.get("annotations") or f["annotations"] in ("", "[]", "null")]
 
+    # Skip files where all current labels have already been analyzed
+    if not force:
+        label_names_set = {l["name"].lower() for l in labels}
+        def _needs_analysis(f):
+            raw = f.get("analyzed_labels")
+            if not raw or raw in ("", "[]", "null"):
+                return True
+            try:
+                already = set(json.loads(raw) if isinstance(raw, str) else raw)
+            except (json.JSONDecodeError, TypeError):
+                return True
+            return not label_names_set.issubset(already)
+        files = [f for f in files if _needs_analysis(f)]
+
+    if not files:
+        with _batch_lock:
+            _batch_state = {"status": "done", "current": 0, "total": 0, "file_id": None, "error": None}
+        return jsonify({"status": "done", "total": 0})
+
     with _batch_lock:
         _batch_state["total"] = len(files)
 
@@ -300,9 +341,10 @@ def falcon_auto_annotate_batch():
                     _batch_state["file_id"] = file_row["id"]
 
                 with _lock:
-                    new_objects, merged = _auto_annotate_file(file_row, labels)
+                    new_objects, merged, analyzed = _auto_annotate_file(file_row, labels, force=force)
                 if new_objects:
                     update_file_annotations(file_row["id"], json.dumps({"objects": merged}))
+                update_file_analyzed_labels(file_row["id"], json.dumps(analyzed))
 
             with _batch_lock:
                 _batch_state["status"] = "done"
