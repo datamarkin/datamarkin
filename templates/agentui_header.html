@@ -9,7 +9,7 @@
     <div class="dm-wf-bar-center">
         <div class="dm-wf-actions">
             <a href="{{ url_for('projects') }}" class="tab-pill {{ 'is-active' if active_tab == 'projects' }}">Projects</a>
-            <a href="{{ url_for('agentui.serve_app') }}" class="tab-pill {{ 'is-active' if active_tab == 'workflows' }}">Workflows</a>
+            <span class="tab-pill is-active">Workflows</span>
             <a href="{{ url_for('studio') }}" class="tab-pill {{ 'is-active' if active_tab == 'studio' }}">Studio</a>
         </div>
         {#        <div class="dm-wf-actions">#}
@@ -130,6 +130,10 @@
         background: rgba(0, 0, 0, 0.06);
         border-radius: 8px;
         padding: 3px;
+    }
+
+    .dm-wf-actions .tab-pill.is-active {
+        cursor: default;
     }
 
     .dm-wf-actions .button.is-app {
