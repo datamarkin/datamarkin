@@ -224,45 +224,11 @@ def get_project_files(project_id: str) -> list[dict]:
 
 # ── Training queries ──────────────────────────────────────────────────────────
 
-def create_training(project_id: str, config_json: str) -> str:
-    conn = get_db()
-    training_id = new_id()
-    ts = now()
-    conn.execute(
-        """INSERT INTO trainings (id, project_id, status, config, created_at, updated_at)
-           VALUES (?, ?, 'pending', ?, ?, ?)""",
-        (training_id, project_id, config_json, ts, ts),
-    )
-    conn.commit()
-    conn.close()
-    return training_id
-
-
 def get_training(training_id: str) -> dict | None:
     conn = get_db()
     row = conn.execute("SELECT * FROM trainings WHERE id = ?", (training_id,)).fetchone()
     conn.close()
     return dict(row) if row else None
-
-
-def update_training_progress(training_id: str, progress_json: str) -> None:
-    conn = get_db()
-    conn.execute(
-        "UPDATE trainings SET progress = ?, updated_at = ? WHERE id = ?",
-        (progress_json, now(), training_id),
-    )
-    conn.commit()
-    conn.close()
-
-
-def update_training_done(training_id: str, model_path: str, metrics_json: str) -> None:
-    conn = get_db()
-    conn.execute(
-        "UPDATE trainings SET status = 'done', model_path = ?, metrics = ?, updated_at = ? WHERE id = ?",
-        (model_path, metrics_json, now(), training_id),
-    )
-    conn.commit()
-    conn.close()
 
 
 def update_training_status(training_id: str, status: str, error: str | None = None) -> None:

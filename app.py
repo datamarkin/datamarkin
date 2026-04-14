@@ -12,7 +12,6 @@ from routes.projects_page_route import (
     project_configuration_route, project_apply_split_route,
 )
 from routes.project_page_route import project_page_route
-# from routes.settings_page_route import settings_page_route
 from routes.files_route import files_route
 from routes.api import api
 from routes.efficienttam_api import efficienttam_api
@@ -24,7 +23,7 @@ from queries import (
     get_done_trainings_with_project, get_project_by_id, get_training,
     list_workflows, get_workflow_by_id, save_workflow, update_workflow, delete_workflow,
 )
-from config import APP_DIR, APP_NAME, APP_VERSION, ALLOWED_EXTENSIONS, DB_PATH
+from config import APP_DIR, APP_NAME, APP_VERSION, ALLOWED_EXTENSIONS
 
 
 def get_active_tab():
@@ -216,10 +215,6 @@ def create_app() -> Flask:
     def project_image(project_id, file_id):
         return project_image_page_route(project_id, file_id)
 
-    # @app.route("/settings")
-    # def settings():
-    #     return settings_page_route()
-
     @app.route("/studio")
     def studio():
         trainings = []
@@ -254,10 +249,6 @@ def create_app() -> Flask:
             training=None,
             project_name=workflow["name"],
         )
-
-    @app.route("/inference")
-    def inference_redirect():
-        return redirect("/studio")
 
     @app.route("/workflows")
     def workflows():
