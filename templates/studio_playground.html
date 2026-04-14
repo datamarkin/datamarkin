@@ -163,11 +163,167 @@
     </style>
 
     <script>
-        var PAGE_CONFIG = {
-            mode: "{{ mode }}",
-            trainingId: "{{ training.id if training else '' }}",
-            workflowJson: {{ (workflow.workflow_json | tojson) if workflow else '{}' }}
-        };
+        (function () {
+            const MODE = "{{ mode }}";
+            const TRAINING_ID = "{{ training.id if training else '' }}";
+            const WORKFLOW_JSON = {{ (workflow.workflow_json | tojson) if workflow else '{}' }};
+
+            const dropZone = document.getElementById('drop-zone');
+            const fileInput = document.getElementById('file-input');
+            const previewImg = document.getElementById('preview-img');
+            const previewWrap = document.getElementById('preview-wrap');
+            const runBtn = document.getElementById('run-btn');
+            const threshRange = document.getElementById('threshold-range');
+            const threshDisp = document.getElementById('threshold-display');
+            const errorMsg = document.getElementById('error-msg');
+            const emptyState = document.getElementById('empty-state');
+            const resultsSection = document.getElementById('results-section');
+            const resultsTbody = document.getElementById('results-tbody');
+            const resultsSummary = document.getElementById('results-summary');
+
+            let selectedFile = null;
+            let selectedDataURI = null;
+
+            if (threshRange) {
+                threshRange.addEventListener('input', () => {
+                    threshDisp.textContent = parseFloat(threshRange.value).toFixed(2);
+                });
+            }
+
+            dropZone.addEventListener('click', () => fileInput.click());
+            dropZone.addEventListener('dragover', e => {
+                e.preventDefault();
+                dropZone.classList.add('is-dragover');
+            });
+            dropZone.addEventListener('dragleave', () => dropZone.classList.remove('is-dragover'));
+            dropZone.addEventListener('drop', e => {
+                e.preventDefault();
+                dropZone.classList.remove('is-dragover');
+                const file = e.dataTransfer.files[0];
+                if (file && file.type.startsWith('image/')) loadFile(file);
+            });
+            fileInput.addEventListener('change', () => {
+                if (fileInput.files[0]) loadFile(fileInput.files[0]);
+            });
+
+            function loadFile(file) {
+                selectedFile = file;
+                document.getElementById('drop-zone-text').textContent = file.name;
+                const reader = new FileReader();
+                reader.onload = e => {
+                    selectedDataURI = e.target.result;
+                    previewImg.src = selectedDataURI;
+                    emptyState.style.display = 'none';
+                    previewWrap.style.display = '';
+                    resultsSection.style.display = 'none';
+                    resultsTbody.innerHTML = '';
+                };
+                reader.readAsDataURL(file);
+            }
+
+            function showResults(items) {
+                resultsTbody.innerHTML = '';
+                items.forEach((item, i) => {
+                    const name = item.class_name || 'unknown';
+                    const coords = item.bbox.map(v => Math.round(v)).join(', ');
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                <td>${i + 1}</td>
+                <td>${name}</td>
+                <td>${item.confidence ? Math.round(item.confidence * 100) + '%' : '—'}</td>
+                <td style="font-family:monospace">${coords}</td>
+            `;
+                    resultsTbody.appendChild(row);
+                });
+                resultsSummary.textContent = `${items.length} detection${items.length !== 1 ? 's' : ''}`;
+                resultsSection.style.display = '';
+            }
+
+            async function runModel() {
+                const formData = new FormData();
+                formData.append('file', selectedFile);
+                formData.append('training_id', TRAINING_ID);
+                formData.append('threshold', threshRange.value);
+
+                const resp = await fetch('/api/predict/run', {method: 'POST', body: formData});
+                const data = await resp.json();
+                if (!resp.ok) throw new Error(data.error || 'Inference failed');
+                previewImg.src = data.annotated_image;
+                showResults(data.detections);
+            }
+
+            async function runWorkflow() {
+                const wf = JSON.parse(JSON.stringify(WORKFLOW_JSON));
+                const nodes = wf.nodes || [];
+                const mediaNode = nodes.find(n => n.data && (n.data.toolType === 'MediaInput' || n.data.nodeType === 'MediaInput'));
+                if (!mediaNode) throw new Error('This workflow has no image input (MediaInput node).');
+                if (!mediaNode.data.parameters) mediaNode.data.parameters = {};
+                mediaNode.data.parameters.data = selectedDataURI;
+
+                const resp = await fetch('/agentui/api/workflow/execute', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({workflow: wf}),
+                });
+                const data = await resp.json();
+                if (!data.success) throw new Error(data.error || 'Workflow execution failed');
+
+                let outputImage = null;
+                let outputDetections = null;
+
+                for (const [, result] of Object.entries(data.results)) {
+                    if (!result.is_terminal) continue;
+                    for (const [, value] of Object.entries(result.outputs)) {
+                        if (typeof value === 'string' && value.startsWith('data:image/')) {
+                            outputImage = value;
+                        } else if (Array.isArray(value) && value.length > 0 && value[0].bbox) {
+                            outputDetections = value;
+                        }
+                    }
+                }
+
+                if (outputImage) previewImg.src = outputImage;
+                if (outputDetections) showResults(outputDetections);
+
+                if (!outputImage && !outputDetections) {
+                    resultsSummary.textContent = 'Workflow produced no visual output';
+                    resultsSection.style.display = '';
+                }
+            }
+
+            runBtn.addEventListener('click', async () => {
+                if (!selectedFile) {
+                    showError('Please drop an image first.');
+                    return;
+                }
+
+                hideError();
+                runBtn.classList.add('is-loading');
+                runBtn.disabled = true;
+
+                try {
+                    if (MODE === 'model') {
+                        await runModel();
+                    } else {
+                        await runWorkflow();
+                    }
+                } catch (e) {
+                    showError(e.message);
+                } finally {
+                    runBtn.classList.remove('is-loading');
+                    runBtn.disabled = false;
+                }
+            });
+
+            function showError(msg) {
+                errorMsg.textContent = msg;
+                errorMsg.classList.remove('is-hidden');
+            }
+
+            function hideError() {
+                errorMsg.textContent = '';
+                errorMsg.classList.add('is-hidden');
+            }
+        })();
     </script>
-    <script src="{{ url_for('static', filename='js/playground.js') }}"></script>
 {% endblock %}

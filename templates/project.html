@@ -554,15 +554,687 @@
     <script src="{{ url_for('static', filename='js/file-upload.js') }}"></script>
     <script src="{{ url_for('static', filename='js/Sortable.min.js') }}"></script>
     <script>
-        var PAGE_CONFIG = {
-            projectId: '{{ project.id }}',
-            preprocessing: {{ project.preprocessing | tojson }},
-            augmentation: {{ project.augmentation | tojson }},
-            configuration: {{ project.configuration | tojson }},
-            activeTrainingId: '{{ active_training.id if active_training else "" }}'
-        };
+        // ─── Global label helpers (called from onclick attributes) ────────────
+        function addKeypointToLabel(btn) {
+            var kpList = btn.closest('.keypoint-editor').querySelector('.keypoints-list');
+            var kpRow = document.createElement('div');
+            kpRow.className = 'field has-addons mt-1 mb-0 keypoint-row';
+            kpRow.innerHTML =
+                '<div class="control is-expanded"><input class="input is-small" type="text" placeholder="Keypoint name"></div>' +
+                '<div class="control"><input type="color" value="#e74c3c" style="height:32px;width:40px;border:1px solid #dbdbdb;border-radius:4px;cursor:pointer;"></div>' +
+                '<div class="control"><button type="button" class="button is-small is-light" onclick="this.closest(\'.keypoint-row\').remove()">×</button></div>';
+            kpList.appendChild(kpRow);
+        }
+
+        function addLabelRow() {
+            var list = document.getElementById('labels-list');
+            var div = document.createElement('div');
+            div.className = 'label-row-wrapper mb-2';
+            div.innerHTML =
+                '<div class="field has-addons mt-0 mb-0">' +
+                '<div class="control is-expanded"><input class="input label-name" type="text" placeholder="Label name" value=""></div>' +
+                '<div class="control"><input class="label-color" type="color" value="#3498db" style="height:40px;width:50px;border:1px solid #dbdbdb;border-radius:4px;cursor:pointer;"></div>' +
+                '<div class="control"><button type="button" class="button is-light" onclick="this.closest(\'.label-row-wrapper\').remove()">×</button></div>' +
+                '</div>' +
+                '<div class="keypoint-editor pl-4 pt-1" style="display:none">' +
+                '<div class="keypoints-list"></div>' +
+                '<button type="button" class="button is-small is-light mt-1" onclick="addKeypointToLabel(this)">+ Add keypoint</button>' +
+                '</div>';
+            list.appendChild(div);
+        }
+
+        (function () {
+            // --- Settings modal ---
+            var modal = document.getElementById('project-settings-modal');
+
+            document.getElementById('settings-btn').addEventListener('click', function () {
+                modal.classList.add('is-active');
+            });
+            modal.querySelector('.modal-background').addEventListener('click', function () {
+                modal.classList.remove('is-active');
+            });
+            document.getElementById('settings-modal-close').addEventListener('click', function () {
+                modal.classList.remove('is-active');
+            });
+
+            // --- Tab switching ---
+            modal.querySelectorAll('.settings-nav-btn').forEach(function (btn) {
+                btn.addEventListener('click', function () {
+                    modal.querySelectorAll('.settings-nav-btn').forEach(function (b) {
+                        b.classList.remove('is-active');
+                    });
+                    btn.classList.add('is-active');
+                    modal.querySelectorAll('.settings-panel').forEach(function (p) {
+                        p.classList.remove('is-active');
+                    });
+                    document.getElementById('panel-' + btn.dataset.panel).classList.add('is-active');
+                });
+            });
+
+            // --- Pipeline builder init ---
+            buildCatalog(document.getElementById('pp-catalog'), PP_CATALOG);
+            buildCatalog(document.getElementById('aug-catalog'), AUG_CATALOG);
+            initCatalogClicks(document.getElementById('pp-catalog'), document.getElementById('pp-pipeline'), PP_CATALOG, false);
+            initCatalogClicks(document.getElementById('aug-catalog'), document.getElementById('aug-pipeline'), AUG_CATALOG, true);
+            initSearch(document.getElementById('pp-search'), document.getElementById('pp-catalog'));
+            initSearch(document.getElementById('aug-search'), document.getElementById('aug-catalog'));
+            initPipelineSortable(document.getElementById('pp-pipeline'), PP_CATALOG, false);
+            initPipelineSortable(document.getElementById('aug-pipeline'), AUG_CATALOG, true);
+            initCatalogSortable(document.getElementById('pp-catalog'), false);
+            initCatalogSortable(document.getElementById('aug-catalog'), true);
+            loadPipeline(document.getElementById('pp-pipeline'), {{ project.preprocessing | tojson }}, PP_CATALOG, false);
+            loadPipeline(document.getElementById('aug-pipeline'), {{ project.augmentation | tojson }}, AUG_CATALOG, true);
+
+            _projectId = '{{ project.id }}';
+
+            // --- Save project settings ---
+            function collectAndSave(feedbackEl) {
+                var name = document.querySelector('#panel-settings input[type="text"]').value.trim();
+                var desc = document.querySelector('#panel-settings textarea').value;
+                if (!name) {
+                    feedbackEl.textContent = 'Name is required';
+                    return;
+                }
+                var labels = [];
+                document.querySelectorAll('#labels-list .label-row-wrapper').forEach(function (row, i) {
+                    var labelName = row.querySelector('.label-name').value.trim();
+                    var color = row.querySelector('.label-color').value.replace('#', '');
+                    if (labelName) labels.push({id: i, name: labelName, color: color});
+                });
+                fetch('/project/' + _projectId + '/settings', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({name: name, description: desc, labels: labels}),
+                }).then(function (r) {
+                    return r.json();
+                }).then(function (data) {
+                    feedbackEl.textContent = data.ok ? 'Saved' : (data.error || 'Error');
+                    setTimeout(function () {
+                        feedbackEl.textContent = '';
+                    }, 2500);
+                });
+            }
+
+            document.getElementById('save-settings-btn').addEventListener('click', function () {
+                collectAndSave(document.getElementById('save-settings-feedback'));
+            });
+            document.getElementById('save-labels-btn').addEventListener('click', function () {
+                collectAndSave(document.getElementById('save-labels-feedback'));
+            });
+
+            // --- File upload ---
+            initFileUpload('{{ project.id }}');
+
+            // --- Training configuration ---
+            (function () {
+                var cfg = {{ project.configuration | tojson }};
+                if (cfg.model_size) document.getElementById('cfg-model-size').value = cfg.model_size;
+                if (cfg.resolution) document.getElementById('cfg-resolution').value = String(cfg.resolution);
+                if (cfg.epochs) document.getElementById('cfg-epochs').value = cfg.epochs;
+                if (cfg.batch_size) document.getElementById('cfg-batch-size').value = cfg.batch_size;
+                if (cfg.lr) document.getElementById('cfg-lr').value = cfg.lr;
+                if (cfg.early_stopping === false) document.getElementById('cfg-early-stopping').checked = false;
+                if (cfg.early_stopping_patience) document.getElementById('cfg-patience').value = cfg.early_stopping_patience;
+
+                function togglePatience() {
+                    document.getElementById('cfg-patience-field').style.display =
+                        document.getElementById('cfg-early-stopping').checked ? '' : 'none';
+                }
+
+                document.getElementById('cfg-early-stopping').addEventListener('change', togglePatience);
+                togglePatience();
+
+                // --- Split sliders ---
+                var sliderTrain = document.getElementById('slider-train');
+                var sliderVal = document.getElementById('slider-val');
+
+                function updateSplitUI() {
+                    var train = parseInt(sliderTrain.value);
+                    var maxVal = Math.max(5, 95 - train);
+                    sliderVal.max = maxVal;
+                    if (parseInt(sliderVal.value) > maxVal) sliderVal.value = maxVal;
+                    var val = parseInt(sliderVal.value);
+                    var test = 100 - train - val;
+                    if (test < 0) {
+                        sliderVal.value = 100 - train - 5;
+                        val = parseInt(sliderVal.value);
+                        test = 100 - train - val;
+                    }
+                    document.getElementById('lbl-train').textContent = train + '%';
+                    document.getElementById('lbl-val').textContent = val + '%';
+                    document.getElementById('lbl-test').textContent = test + '%';
+                    document.getElementById('split-bar-train').style.width = train + '%';
+                    document.getElementById('split-bar-val').style.width = val + '%';
+                    document.getElementById('split-bar-test').style.width = test + '%';
+                }
+
+                sliderTrain.addEventListener('input', updateSplitUI);
+                sliderVal.addEventListener('input', updateSplitUI);
+
+                // Restore saved split ratios
+                if (cfg.split_train) sliderTrain.value = Math.round(cfg.split_train * 100);
+                if (cfg.split_val) sliderVal.value = Math.round(cfg.split_val * 100);
+                updateSplitUI();
+
+                document.getElementById('apply-split-btn').addEventListener('click', function () {
+                    var fb = document.getElementById('apply-split-feedback');
+                    var train = parseInt(sliderTrain.value) / 100;
+                    var val = parseInt(sliderVal.value) / 100;
+                    var test = Math.round((1 - train - val) * 100) / 100;
+                    fetch('/project/' + _projectId + '/apply-split', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({train: train, val: val, test: test}),
+                    }).then(function (r) {
+                        return r.json();
+                    }).then(function (d) {
+                        if (d.ok) {
+                            fb.textContent = 'Applied — train:' + d.counts.train + ' val:' + d.counts.valid + ' test:' + d.counts.test;
+                        } else {
+                            fb.textContent = d.error || 'Error';
+                        }
+                        setTimeout(function () {
+                            fb.textContent = '';
+                        }, 3500);
+                    });
+                });
+
+                document.getElementById('save-config-btn').addEventListener('click', function () {
+                    var fb = document.getElementById('save-config-feedback');
+                    var payload = {
+                        model_size: document.getElementById('cfg-model-size').value,
+                        resolution: parseInt(document.getElementById('cfg-resolution').value),
+                        epochs: parseInt(document.getElementById('cfg-epochs').value),
+                        batch_size: parseInt(document.getElementById('cfg-batch-size').value),
+                        lr: parseFloat(document.getElementById('cfg-lr').value),
+                        early_stopping: document.getElementById('cfg-early-stopping').checked,
+                        early_stopping_patience: parseInt(document.getElementById('cfg-patience').value),
+                        split_train: parseInt(sliderTrain.value) / 100,
+                        split_val: parseInt(sliderVal.value) / 100,
+                    };
+                    fetch('/project/' + _projectId + '/configuration', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify(payload),
+                    }).then(function (r) {
+                        return r.json();
+                    }).then(function (d) {
+                        fb.textContent = d.ok ? 'Saved' : (d.error || 'Error');
+                        setTimeout(function () {
+                            fb.textContent = '';
+                        }, 2500);
+                    });
+                });
+            })();
+        })();
+
+        // ─── Training modal ───────────────────────────────────────────────────
+        (function () {
+            var modal = document.getElementById('training-modal');
+            var listView = document.getElementById('training-list-view');
+            var detailView = document.getElementById('training-detail-view');
+            var backBtn = document.getElementById('training-back-btn');
+            var titleEl = document.getElementById('training-modal-title');
+            var startBtn = document.getElementById('training-start-btn');
+            var stopBtn = document.getElementById('training-stop-btn');
+            var currentId = null;
+            var epochTimer = null;
+            var liveTimer = null;
+            var lossHistory = [];  // batch-level, in-memory only
+
+            document.getElementById('train-btn').addEventListener('click', function () {
+                modal.classList.add('is-active');
+                if (activeTrainingId) startPolling(activeTrainingId);
+            });
+
+            // Close
+            document.getElementById('training-modal-close').addEventListener('click', closeModal);
+            modal.querySelector('.modal-background').addEventListener('click', closeModal);
+
+            function closeModal() {
+                modal.classList.remove('is-active');
+                stopPolling();
+            }
+
+            // Back to list
+            backBtn.addEventListener('click', showList);
+
+            function showList() {
+                listView.style.display = '';
+                detailView.style.display = 'none';
+                backBtn.style.display = 'none';
+                stopBtn.style.display = 'none';
+                titleEl.textContent = 'Training runs';
+                currentId = null;
+                lossHistory = [];
+                stopPolling();
+                if (activeTrainingId) startPolling(activeTrainingId);
+            }
+
+            function showDetail(trainingId) {
+                listView.style.display = 'none';
+                detailView.style.display = 'block';
+                backBtn.style.display = '';
+                currentId = trainingId;
+                lossHistory = [];
+                fetchAndRender(trainingId);
+            }
+
+            // Row click → detail
+            document.querySelectorAll('.training-row').forEach(function (row) {
+                row.addEventListener('click', function () {
+                    stopPolling();
+                    showDetail(row.dataset.trainingId);
+                });
+            });
+
+            // ── Polling ──────────────────────────────────────────────────────
+            var activeTrainingId = '{{ active_training.id if active_training else "" }}';
+
+            function startPolling(id) {
+                stopPolling();
+                // Epoch-level poll every 5s
+                epochTimer = setInterval(function () {
+                    fetch('/api/training/' + id)
+                        .then(function (r) {
+                            return r.json();
+                        })
+                        .then(function (data) {
+                            updateListRow(data);
+                            if (currentId === id) renderDetail(data);
+                            if (data.status !== 'running' && data.status !== 'pending') {
+                                stopPolling();
+                                activeTrainingId = '';
+                                startBtn.disabled = false;
+                                if (currentId === id) stopBtn.style.display = 'none';
+                            }
+                        });
+                }, 5000);
+                // Live batch-level poll every 2s (only updates lossHistory + redraws loss chart)
+                liveTimer = setInterval(function () {
+                    if (currentId !== id) return;
+                    fetch('/api/training/' + id + '/live')
+                        .then(function (r) {
+                            return r.json();
+                        })
+                        .then(function (live) {
+                            if (live.batch_loss === undefined) return;
+                            lossHistory.push(live.batch_loss);
+                            var el = document.getElementById('tm-chart-loss');
+                            if (el) drawLineChart(el, lossHistory, '#4a90d9');
+                            // update live loss label
+                            var lbl = document.getElementById('tm-live-loss');
+                            if (lbl) lbl.textContent = live.batch_loss.toFixed(4);
+                        });
+                }, 2000);
+            }
+
+            function stopPolling() {
+                if (epochTimer) {
+                    clearInterval(epochTimer);
+                    epochTimer = null;
+                }
+                if (liveTimer) {
+                    clearInterval(liveTimer);
+                    liveTimer = null;
+                }
+            }
+
+            function fetchAndRender(id) {
+                fetch('/api/training/' + id)
+                    .then(function (r) {
+                        return r.json();
+                    })
+                    .then(function (data) {
+                        renderDetail(data);
+                        if (data.status === 'running' || data.status === 'pending') {
+                            stopBtn.style.display = '';
+                            startPolling(id);
+                        } else {
+                            stopBtn.style.display = 'none';
+                        }
+                    });
+            }
+
+            // ── Detail renderer ───────────────────────────────────────────────
+            function renderDetail(t) {
+                var cfg = parse(t.config);
+                var metrics = parse(t.metrics);
+                var progress = parse(t.progress);
+                var history = metrics.history || [];
+                var created = (t.created_at || '').slice(0, 10);
+                var isLive = t.status === 'running' || t.status === 'pending';
+
+                titleEl.textContent = 'Training — ' + created;
+
+                // ── Status line
+                var statusColor = {
+                    running: '#48c774',
+                    pending: '#ffdd57',
+                    done: '#48c774',
+                    failed: '#f14668',
+                    stopped: '#aaa'
+                };
+                var dot = '<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:' + (statusColor[t.status] || '#aaa') + ';margin-right:6px' + (isLive ? ';animation:pulse 1.5s infinite' : '') + '"></span>';
+                var statusLine = '<div style="margin-bottom:12px">' + dot + '<strong>' + escapeHtml(t.status) + '</strong><span class="is-size-7 has-text-grey ml-2">' + created + '</span></div>';
+
+                // ── Epoch progress bar (only while running)
+                var progressHTML = '';
+                if (isLive) {
+                    var epoch = progress.epoch || 0;
+                    var total = cfg.epochs || 0;
+                    var pct = total > 0 ? Math.round(epoch / total * 100) : 0;
+                    progressHTML =
+                        '<div class="mb-4">' +
+                        '<div style="display:flex;justify-content:space-between;margin-bottom:4px">' +
+                        '<span class="is-size-7">Epoch ' + epoch + ' / ' + total + '</span>' +
+                        '<span class="is-size-7">' + pct + '%</span>' +
+                        '</div>' +
+                        '<progress class="progress is-small is-link" value="' + pct + '" max="100"></progress>' +
+                        '</div>';
+                }
+
+                // ── Accuracy panel (mAP@50 as friendly "model accuracy")
+                var mapVal = progress.map !== undefined ? progress.map : (history.length > 0 ? (history[history.length - 1].map || 0) : null);
+                var prevMapVal = history.length >= 2 ? (history[history.length - 2].map || 0) : null;
+                var accuracyHTML = '';
+                if (mapVal !== null || history.length > 0 || t.status === 'done') {
+                    var pct100 = mapVal !== null ? (mapVal * 100) : 0;
+                    var barColor = pct100 < 15 ? '#e76f51' : pct100 < 40 ? '#f4a261' : '#2a9d8f';
+                    var trendHTML = '';
+                    if (prevMapVal !== null && mapVal !== null) {
+                        var delta = (mapVal - prevMapVal) * 100;
+                        var arrow = delta >= 0 ? '↑' : '↓';
+                        var dColor = delta >= 0 ? '#2a9d8f' : '#e76f51';
+                        trendHTML = ' <span style="color:' + dColor + ';font-size:0.8rem">' + arrow + ' ' + Math.abs(delta).toFixed(1) + '% this epoch</span>';
+                    }
+                    var bestMapVal = metrics.best_mAP !== undefined ? metrics.best_mAP : mapVal;
+                    accuracyHTML =
+                        '<div class="mb-4" style="background:#faf4eb;border-radius:8px;padding:14px 16px">' +
+                        '<p class="is-size-7 has-text-grey mb-2" style="text-transform:uppercase;letter-spacing:.05em">Model Accuracy</p>' +
+                        '<div style="display:flex;align-items:baseline;gap:8px;margin-bottom:8px">' +
+                        '<span style="font-size:2rem;font-weight:700;color:' + barColor + '">' + pct100.toFixed(1) + '%</span>' +
+                        trendHTML +
+                        (t.status === 'done' && bestMapVal ? '<span class="is-size-7 has-text-grey" style="margin-left:auto">Best: ' + (bestMapVal * 100).toFixed(1) + '%</span>' : '') +
+                        '</div>' +
+                        '<div style="background:#e8ddd0;border-radius:4px;height:6px;overflow:hidden">' +
+                        '<div style="width:' + Math.min(100, pct100) + '%;height:100%;background:' + barColor + ';border-radius:4px;transition:width .6s ease"></div>' +
+                        '</div>' +
+                        '<p class="is-size-7 has-text-grey mt-2">How accurately the model detects objects in images it hasn\'t seen during training (mAP@50).</p>' +
+                        '</div>';
+                }
+
+                // ── Training curves
+                var hasEpochLoss = history.length > 0 && history[0].loss !== undefined;
+                var hasEpochMap = history.length > 0 && history[0].map !== undefined;
+                var hasLiveLoss = lossHistory.length > 0;
+                var chartsHTML = '';
+                if (hasLiveLoss || hasEpochLoss || hasEpochMap) {
+                    var lossSection = '';
+                    if (hasLiveLoss || hasEpochLoss) {
+                        lossSection =
+                            '<div style="margin-bottom:12px">' +
+                            '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">' +
+                            '<span class="is-size-7 has-text-grey">Loss <span style="font-size:0.7em;color:#aaa">(lower is better)</span></span>' +
+                            (isLive ? '<span class="is-size-7" id="tm-live-loss" style="color:#4a90d9;font-weight:600"></span>' : '') +
+                            '</div>' +
+                            '<svg id="tm-chart-loss" width="100%" height="72" style="display:block;overflow:visible"></svg>' +
+                            '</div>';
+                    }
+                    var mapSection = '';
+                    if (hasEpochMap) {
+                        mapSection =
+                            '<div>' +
+                            '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">' +
+                            '<span class="is-size-7 has-text-grey">Detection accuracy per epoch <span style="font-size:0.7em;color:#aaa">(higher is better)</span></span>' +
+                            '</div>' +
+                            '<svg id="tm-chart-map" width="100%" height="72" style="display:block;overflow:visible"></svg>' +
+                            '</div>';
+                    }
+                    chartsHTML =
+                        '<div class="mb-4" style="background:#faf4eb;border-radius:8px;padding:14px 16px">' +
+                        '<p class="is-size-7 has-text-grey mb-3" style="text-transform:uppercase;letter-spacing:.05em">Training Curves</p>' +
+                        lossSection + mapSection +
+                        '</div>';
+                }
+
+                // ── Technical details (collapsible)
+                var techHTML = '';
+                if (history.length > 0) {
+                    var last = history[history.length - 1];
+                    var techParts = [];
+                    if (last.loss !== undefined) techParts.push('Loss: <strong>' + last.loss.toFixed(4) + '</strong>');
+                    if (last.map_50_95 !== undefined) techParts.push('mAP@50:95: <strong>' + (last.map_50_95 * 100).toFixed(1) + '%</strong>');
+                    if (last.map_75 !== undefined) techParts.push('mAP@75: <strong>' + (last.map_75 * 100).toFixed(1) + '%</strong>');
+                    if (last.recall !== undefined) techParts.push('Recall: <strong>' + (last.recall * 100).toFixed(1) + '%</strong>');
+                    if (last.f1 !== undefined) techParts.push('F1: <strong>' + (last.f1 * 100).toFixed(1) + '%</strong>');
+                    if (last.precision !== undefined) techParts.push('Precision: <strong>' + (last.precision * 100).toFixed(1) + '%</strong>');
+                    if (last.ema_map_50 !== undefined) techParts.push('EMA mAP@50: <strong>' + (last.ema_map_50 * 100).toFixed(1) + '%</strong>');
+                    var keys = Object.keys(last);
+                    var tableRows = history.map(function (e, i) {
+                        return '<tr><td>' + (i + 1) + '</td>' +
+                            keys.map(function (k) {
+                                var v = e[k];
+                                return '<td>' + (typeof v === 'number' ? v.toFixed(4) : escapeHtml(String(v === null || v === undefined ? '—' : v))) + '</td>';
+                            }).join('') + '</tr>';
+                    }).join('');
+                    techHTML =
+                        '<details class="mb-3"><summary class="is-size-7" style="cursor:pointer;color:#888">Technical details (' + history.length + ' epoch' + (history.length !== 1 ? 's' : '') + ')</summary>' +
+                        '<div class="mt-2 mb-3 is-size-7" style="line-height:2">' + techParts.join(' &nbsp;·&nbsp; ') + '</div>' +
+                        '<div style="overflow:auto;max-height:160px">' +
+                        '<table class="table is-narrow is-fullwidth is-size-7" style="white-space:nowrap">' +
+                        '<thead><tr><th>#</th>' + keys.map(function (k) {
+                            return '<th>' + escapeHtml(k) + '</th>';
+                        }).join('') + '</tr></thead>' +
+                        '<tbody>' + tableRows + '</tbody></table></div></details>';
+                }
+
+                // ── Error
+                var errorHTML = '';
+                if (t.status === 'failed' && t.error) {
+                    errorHTML =
+                        '<div class="mb-3">' +
+                        '<p class="is-size-7 has-text-danger mb-1">Error</p>' +
+                        '<pre class="is-size-7" style="max-height:140px;overflow:auto;background:#fff5f5;padding:8px;border-radius:4px;white-space:pre-wrap">' +
+                        escapeHtml(t.error) + '</pre></div>';
+                }
+
+                // ── Model path (on done)
+                var modelHTML = '';
+                if (t.status === 'done' && t.model_path) {
+                    modelHTML =
+                        '<div class="mb-3">' +
+                        '<p class="is-size-7 has-text-grey mb-1">Saved model</p>' +
+                        '<p class="is-size-7" style="word-break:break-all;color:#555">' + escapeHtml(t.model_path) + '</p>' +
+                        '</div>';
+                }
+
+                // ── Config summary (collapsed by default)
+                var cfgHTML =
+                    '<details class="mb-3"><summary class="is-size-7" style="cursor:pointer;color:#888">Configuration</summary>' +
+                    '<p class="is-size-7 mt-1">' +
+                    'Model: <strong>' + (cfg.model_size || '—') + '</strong>' +
+                    ' · Resolution: <strong>' + (cfg.resolution || '—') + 'px</strong>' +
+                    ' · Epochs: <strong>' + (cfg.epochs || '—') + '</strong>' +
+                    ' · Batch: <strong>' + (cfg.batch_size || '—') + '</strong>' +
+                    ' · LR: <strong>' + (cfg.lr || '—') + '</strong>' +
+                    '</p></details>';
+
+                detailView.innerHTML = statusLine + progressHTML + accuracyHTML + chartsHTML + errorHTML + modelHTML + techHTML + cfgHTML;
+
+                // Draw charts after DOM is updated
+                var lossEl = document.getElementById('tm-chart-loss');
+                var mapEl = document.getElementById('tm-chart-map');
+                if (lossEl) {
+                    var lossVals = lossHistory.length > 0
+                        ? lossHistory
+                        : history.map(function (e) {
+                            return e.loss !== undefined ? e.loss : null;
+                        });
+                    drawLineChart(lossEl, lossVals, '#4a90d9');
+                }
+                if (mapEl) {
+                    var mapVals = history.map(function (e) {
+                        return e.map !== undefined ? e.map : null;
+                    });
+                    drawLineChart(mapEl, mapVals, '#2a9d8f');
+                }
+            }
+
+            function drawLineChart(el, values, color) {
+                var nums = values.map(function (v) {
+                    return v === null || v === undefined ? NaN : +v;
+                });
+                var valid = nums.filter(function (v) {
+                    return !isNaN(v);
+                });
+                if (valid.length < 1) {
+                    el.innerHTML = '<text x="50%" y="50%" text-anchor="middle" font-size="10" fill="#aaa">waiting for data…</text>';
+                    return;
+                }
+                var W = 300, H = 60;
+                var mn = Math.min.apply(null, valid), mx = Math.max.apply(null, valid);
+                var pad = (mx - mn) * 0.15 || 0.01;
+                var pts = [];
+                var n = nums.length;
+                nums.forEach(function (v, i) {
+                    if (isNaN(v)) return;
+                    pts.push((n > 1 ? i / (n - 1) * W : W / 2).toFixed(1) + ',' + (H - (v - mn + pad) / (mx - mn + 2 * pad) * H).toFixed(1));
+                });
+                el.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
+                el.setAttribute('preserveAspectRatio', 'none');
+                // Subtle fill under the line
+                var fillPts = pts[0].split(',')[0] + ',' + H + ' ' + pts.join(' ') + ' ' + pts[pts.length - 1].split(',')[0] + ',' + H;
+                el.innerHTML =
+                    '<polygon points="' + fillPts + '" fill="' + color + '" fill-opacity="0.08"/>' +
+                    '<polyline points="' + pts.join(' ') + '" fill="none" stroke="' + color + '" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/>' +
+                    // last value dot
+                    '<circle cx="' + pts[pts.length - 1].split(',')[0] + '" cy="' + pts[pts.length - 1].split(',')[1] + '" r="2.5" fill="' + color + '"/>';
+            }
+
+            function updateListRow(t) {
+                var row = document.querySelector('.training-row[data-training-id="' + t.id + '"]');
+                if (!row) return;
+                var dot = row.querySelector('.training-status-dot');
+                var colorMap = {
+                    running: '#48c774',
+                    pending: '#ffdd57',
+                    done: '#48c774',
+                    failed: '#f14668',
+                    stopped: '#aaa'
+                };
+                if (dot) {
+                    dot.style.background = colorMap[t.status] || '#aaa';
+                    dot.style.animation = (t.status === 'running' || t.status === 'pending') ? 'pulse 1.5s infinite' : '';
+                }
+                var epochEl = row.querySelector('.training-epoch');
+                if (epochEl) {
+                    var progress = parse(t.progress);
+                    var cfg = parse(t.config);
+                    if ((t.status === 'running' || t.status === 'pending') && progress.epoch) {
+                        epochEl.textContent = ' (epoch ' + progress.epoch + '/' + (cfg.epochs || '?') + ')';
+                    }
+                }
+            }
+
+            function parse(v) {
+                if (!v) return {};
+                if (typeof v === 'object') return v;
+                try {
+                    return JSON.parse(v);
+                } catch (e) {
+                    return {};
+                }
+            }
+
+            // ── Start / Stop ────────────────────────────────────────────────
+            startBtn.addEventListener('click', function () {
+                if (startBtn.disabled) return;
+                startBtn.disabled = true;
+                startBtn.textContent = 'Starting…';
+                fetch('/api/training/start', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({project_id: _projectId}),
+                }).then(function (r) {
+                    return r.json();
+                })
+                    .then(function (d) {
+                        if (d.training_id) {
+                            activeTrainingId = d.training_id;
+                            showDetail(d.training_id);
+                        } else {
+                            alert(d.error || 'Failed to start training');
+                            startBtn.disabled = false;
+                            startBtn.textContent = '+ Start Training';
+                        }
+                    }).catch(function () {
+                    startBtn.disabled = false;
+                    startBtn.textContent = '+ Start Training';
+                });
+            });
+
+            stopBtn.addEventListener('click', function () {
+                if (!currentId) return;
+                fetch('/api/training/' + currentId + '/stop', {method: 'POST'})
+                    .then(function (r) {
+                        return r.json();
+                    })
+                    .then(function () {
+                        fetchAndRender(currentId);
+                    });
+            });
+        })();
+
+        // ── Auto-annotate batch ─────────────────────────────────────────
+        document.getElementById('auto-annotate-btn').addEventListener('click', function () {
+            var btn = this;
+            btn.classList.add('is-loading');
+            btn.disabled = true;
+
+            fetch('/api/falcon/auto_annotate_batch', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({project_id: '{{ project.id }}', target: 'all'})
+            })
+            .then(function (resp) { return resp.json(); })
+            .then(function (data) {
+                if (data.error) {
+                    alert(data.error);
+                    btn.classList.remove('is-loading');
+                    btn.disabled = false;
+                    return;
+                }
+                document.getElementById('auto-annotate-banner').style.display = '';
+                var pollErrors = 0;
+                var poll = setInterval(function () {
+                    fetch('/api/falcon/auto_annotate_batch_status')
+                        .then(function (r) { return r.json(); })
+                        .then(function (s) {
+                            pollErrors = 0;
+                            document.getElementById('auto-annotate-progress').textContent = s.current + ' / ' + s.total;
+                            var pct = s.total ? (s.current / s.total * 100) : 0;
+                            document.getElementById('auto-annotate-bar').value = pct;
+                            if (s.status === 'done' || s.status === 'error') {
+                                clearInterval(poll);
+                                if (s.status === 'error') alert('Auto-annotate error: ' + (s.error || 'Unknown'));
+                                location.reload();
+                            }
+                        })
+                        .catch(function (e) {
+                            console.error('Poll error:', e);
+                            if (++pollErrors >= 5) {
+                                clearInterval(poll);
+                                alert('Lost connection to server');
+                            }
+                        });
+                }, 2000);
+            })
+            .catch(function (e) {
+                console.error('Auto annotate batch failed:', e);
+                btn.classList.remove('is-loading');
+                btn.disabled = false;
+            });
+        });
     </script>
-    <script src="{{ url_for('static', filename='js/project-settings.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/training.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/auto-annotate.js') }}"></script>
 {% endblock %}
