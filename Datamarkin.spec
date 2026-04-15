@@ -39,6 +39,12 @@ try:
 except ImportError:
     pass
 
+# PyTorch Lightning data files (version.info, etc.)
+try:
+    datas += collect_data_files("pytorch_lightning")
+except Exception:
+    pass
+
 # AgentUI static assets
 try:
     datas += collect_data_files("agentui")
@@ -107,6 +113,8 @@ hiddenimports += collect_submodules("torch")
 hiddenimports += collect_submodules("torchvision")
 hiddenimports += collect_submodules("rfdetr")
 hiddenimports += collect_submodules("mozo")
+hiddenimports += collect_submodules("pytorch_lightning")
+hiddenimports += collect_submodules("lightning_utilities")
 hiddenimports += collect_submodules("mlx")
 
 try:
