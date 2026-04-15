@@ -25,6 +25,11 @@
                 btn.disabled = false;
                 return;
             }
+            if (data.status === 'done' && data.total === 0) {
+                btn.classList.remove('is-loading');
+                btn.disabled = false;
+                return;
+            }
             document.getElementById('auto-annotate-banner').style.display = '';
             var pollErrors = 0;
             var poll = setInterval(function () {

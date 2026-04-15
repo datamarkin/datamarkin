@@ -1,4 +1,10 @@
+import multiprocessing
 import sys
+
+# Must be called before anything else in a frozen app so that
+# multiprocessing worker processes (e.g. PyTorch DataLoader workers)
+# exit cleanly instead of re-executing the main entry point.
+multiprocessing.freeze_support()
 
 # Worker mode: when the frozen app is invoked with "worker" as first arg,
 # run the training worker instead of the GUI.
@@ -46,6 +52,8 @@ if __name__ == "__main__":
     from update_check import check_for_update
     threading.Thread(target=check_for_update, daemon=True).start()
 
+    import task_queue
+
     window = webview.create_window(
         "Datamarkin",
         f"http://127.0.0.1:{config.FLASK_PORT}/projects",
@@ -53,4 +61,21 @@ if __name__ == "__main__":
         height=800,
         min_size=(900, 600),
     )
+
+    def _on_closing():
+        if task_queue.has_active():
+            try:
+                result = window.evaluate_js(
+                    "confirm('Tasks are still running. Closing now may lose progress. Close anyway?')"
+                )
+                if not result:
+                    return False
+            except Exception:
+                pass
+        return True
+
+    window.events.closing += _on_closing
     webview.start()
+
+    # Window closed — gracefully stop background tasks
+    task_queue.shutdown(timeout=15)

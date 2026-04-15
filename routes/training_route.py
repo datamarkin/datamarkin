@@ -4,11 +4,13 @@ import os
 import signal
 import subprocess
 import sys
+import time
 import zipfile
 from pathlib import Path
 
 from flask import Blueprint, jsonify, request, send_file
 
+import task_queue
 from config import APP_DIR, TRAINING_JOBS_DIR, FILES_DIR
 from db import get_db, new_id, now
 from queries import (
@@ -19,6 +21,39 @@ from queries import (
 )
 
 training_api = Blueprint("training_api", __name__)
+
+
+# ── COCO helpers ─────────────────────────────────────────────────────────────
+
+def _obj_to_coco_ann(obj, ann_id, img_idx, width, height):
+    """Convert a normalized annotation object to a COCO annotation dict."""
+    bbox_norm = obj.get("bbox")
+    if not bbox_norm or len(bbox_norm) != 4:
+        return None
+    x1, y1, x2, y2 = bbox_norm
+    x_abs = x1 * width
+    y_abs = y1 * height
+    w_abs = (x2 - x1) * width
+    h_abs = (y2 - y1) * height
+
+    coco_ann = {
+        "id": ann_id,
+        "image_id": img_idx,
+        "category_id": obj["class"] + 1,
+        "bbox": [x_abs, y_abs, w_abs, h_abs],
+        "area": w_abs * h_abs,
+        "iscrowd": 0,
+    }
+    seg_norm = obj.get("segmentation")
+    if seg_norm and len(seg_norm) >= 6:
+        abs_seg = []
+        for i in range(0, len(seg_norm) - 1, 2):
+            abs_seg.append(seg_norm[i] * width)
+            abs_seg.append(seg_norm[i + 1] * height)
+        coco_ann["segmentation"] = [abs_seg]
+    else:
+        coco_ann["segmentation"] = []
+    return coco_ann
 
 
 # ── COCO dataset preparation ──────────────────────────────────────────────────
@@ -93,34 +128,10 @@ def _prepare_coco_dataset(training_id: str, project_id: str, db) -> str:
 
             ann_data = json.loads(f["annotations"] or "{}")
             for obj in ann_data.get("objects", []):
-                bbox_norm = obj.get("bbox")
-                if not bbox_norm or len(bbox_norm) != 4:
-                    continue
-                x, y, w, h = bbox_norm
-                x_abs = x * f["width"]
-                y_abs = y * f["height"]
-                w_abs = w * f["width"]
-                h_abs = h * f["height"]
-
-                coco_ann = {
-                    "id": ann_id,
-                    "image_id": img_idx,
-                    "category_id": obj["class"] + 1,
-                    "bbox": [x_abs, y_abs, w_abs, h_abs],
-                    "area": w_abs * h_abs,
-                    "iscrowd": 0,
-                }
-                seg_norm = obj.get("segmentation")
-                if seg_norm and len(seg_norm) >= 6:
-                    abs_seg = []
-                    for i in range(0, len(seg_norm) - 1, 2):
-                        abs_seg.append(seg_norm[i] * f["width"])
-                        abs_seg.append(seg_norm[i + 1] * f["height"])
-                    coco_ann["segmentation"] = [abs_seg]
-                else:
-                    coco_ann["segmentation"] = []
-                coco_annotations.append(coco_ann)
-                ann_id += 1
+                coco_ann = _obj_to_coco_ann(obj, ann_id, img_idx, f["width"], f["height"])
+                if coco_ann:
+                    coco_annotations.append(coco_ann)
+                    ann_id += 1
 
         coco_json = {
             "info": {"description": f"Datamarkin export — {project['name']}"},
@@ -135,55 +146,76 @@ def _prepare_coco_dataset(training_id: str, project_id: str, db) -> str:
     return str(dataset_dir)
 
 
-# ── Task dispatcher ───────────────────────────────────────────────────────────
+# ── Training executor (runs in task queue thread) ────────────────────────────
 
-def _launch_worker(training_id: str, db) -> None:
+def _training_executor(ctx):
+    """Launch training subprocess and monitor it until completion."""
+    training_id = ctx.meta["training_id"]
+
     log_path = TRAINING_JOBS_DIR / training_id / "worker.log"
     log_path.parent.mkdir(parents=True, exist_ok=True)
     log_file = open(log_path, "w")
-    if getattr(sys, "frozen", False):
-        cmd = [sys.executable, "worker", "--training-id", training_id]
-    else:
-        cmd = [sys.executable, str(APP_DIR / "scripts" / "training_worker.py"),
-               "--training-id", training_id]
+    try:
+        if getattr(sys, "frozen", False):
+            cmd = [sys.executable, "worker", "--training-id", training_id]
+        else:
+            cmd = [sys.executable, str(APP_DIR / "scripts" / "training_worker.py"),
+                   "--training-id", training_id]
 
-    proc = subprocess.Popen(
-        cmd, cwd=str(APP_DIR), stdout=log_file, stderr=log_file,
-    )
-    db.execute(
-        "UPDATE trainings SET status='running', pid=?, updated_at=? WHERE id=?",
-        (proc.pid, now(), training_id),
-    )
-    db.commit()
+        proc = subprocess.Popen(
+            cmd, cwd=str(APP_DIR), stdout=log_file, stderr=log_file,
+        )
 
-
-def _maybe_dispatch(db) -> None:
-    running = db.execute(
-        "SELECT id, pid FROM trainings WHERE status='running'"
-    ).fetchone()
-    if running:
-        pid = running["pid"]
-        alive = False
-        if pid:
-            try:
-                os.kill(pid, 0)  # signal 0 = existence check, no actual signal
-                alive = True
-            except (ProcessLookupError, PermissionError):
-                alive = False
-        if alive:
-            return
-        # Process is dead but status is still 'running' — clean up
+        db = get_db()
         db.execute(
-            "UPDATE trainings SET status='failed', error='Worker process died unexpectedly', updated_at=? WHERE id=?",
-            (now(), running["id"]),
+            "UPDATE trainings SET status='running', pid=?, updated_at=? WHERE id=?",
+            (proc.pid, now(), training_id),
         )
         db.commit()
+        db.close()
 
-    nxt = db.execute(
-        "SELECT id FROM trainings WHERE status='pending' ORDER BY created_at LIMIT 1"
-    ).fetchone()
-    if nxt:
-        _launch_worker(nxt["id"], db)
+        live_path = TRAINING_JOBS_DIR / training_id / "live.json"
+        while proc.poll() is None:
+            if ctx.is_cancelled():
+                try:
+                    os.kill(proc.pid, signal.SIGTERM)
+                except ProcessLookupError:
+                    pass
+                proc.wait(timeout=30)
+                update_training_status(training_id, "stopped")
+                return
+
+            try:
+                live = json.loads(live_path.read_text())
+                epoch = live.get("epoch", 0)
+                total = live.get("total_epochs", 1)
+                ctx.progress(epoch / total, f"Epoch {epoch}/{total}")
+            except Exception:
+                pass
+            time.sleep(2)
+
+        if proc.returncode != 0:
+            # Worker crashed before it could update DB — read error from log
+            error_msg = "Training worker crashed"
+            log_path_ = TRAINING_JOBS_DIR / training_id / "worker.log"
+            try:
+                lines = log_path_.read_text().strip().splitlines()
+                # Grab last non-empty line as the error summary
+                if lines:
+                    error_msg = lines[-1]
+            except Exception:
+                pass
+            update_training_status(training_id, "failed", error=error_msg)
+            print(f"[training] {training_id} failed: {error_msg}", flush=True)
+            raise RuntimeError(error_msg)
+
+        training = get_training(training_id)
+        if training and training["status"] == "failed":
+            err = training.get("error", "Training failed")
+            print(f"[training] {training_id} failed: {err}", flush=True)
+            raise RuntimeError(err)
+    finally:
+        log_file.close()
 
 
 # ── Routes ────────────────────────────────────────────────────────────────────
@@ -232,9 +264,14 @@ def training_start():
         (training_id, project_id, json.dumps(config_snapshot), now(), now()),
     )
     db.commit()
-
-    _maybe_dispatch(db)
     db.close()
+
+    task_queue.submit(
+        "training",
+        _training_executor,
+        label=f"Training {config_snapshot['model_size']} ({config_snapshot['epochs']} epochs)",
+        meta={"training_id": training_id, "project_id": project_id},
+    )
 
     return jsonify({"training_id": training_id}), 201
 
@@ -244,12 +281,6 @@ def training_status(training_id):
     training = get_training(training_id)
     if not training:
         return jsonify({"error": "Not found"}), 404
-
-    if training["status"] in ("done", "failed", "stopped"):
-        db = get_db()
-        _maybe_dispatch(db)
-        db.close()
-
     return jsonify(training)
 
 
@@ -284,19 +315,20 @@ def training_stop(training_id):
     if training["status"] not in ("running", "pending"):
         return jsonify({"error": "Not running"}), 409
 
-    pid = training.get("pid")
-    if pid:
-        try:
-            os.kill(pid, signal.SIGTERM)
-        except ProcessLookupError:
-            pass
+    # Cancel via task queue (handles both queued and running)
+    task = task_queue.find_task("training", training_id=training_id)
+    if task:
+        task_queue.cancel(task["id"])
+    else:
+        # Fallback: direct SIGTERM if task not in queue (e.g. started before queue existed)
+        pid = training.get("pid")
+        if pid:
+            try:
+                os.kill(pid, signal.SIGTERM)
+            except ProcessLookupError:
+                pass
 
     update_training_status(training_id, "stopped")
-
-    db = get_db()
-    _maybe_dispatch(db)
-    db.close()
-
     return jsonify({"status": "stopped"})
 
 
@@ -359,33 +391,10 @@ def export_coco(project_id):
 
                 ann_data = json.loads(f["annotations"] or "{}")
                 for obj in ann_data.get("objects", []):
-                    bbox_norm = obj.get("bbox")
-                    if not bbox_norm or len(bbox_norm) != 4:
-                        continue
-                    x, y, w, h = bbox_norm
-                    x_abs = x * f["width"]
-                    y_abs = y * f["height"]
-                    w_abs = w * f["width"]
-                    h_abs = h * f["height"]
-                    coco_ann = {
-                        "id": ann_id,
-                        "image_id": img_idx,
-                        "category_id": obj["class"] + 1,
-                        "bbox": [x_abs, y_abs, w_abs, h_abs],
-                        "area": w_abs * h_abs,
-                        "iscrowd": 0,
-                    }
-                    seg_norm = obj.get("segmentation")
-                    if seg_norm and len(seg_norm) >= 6:
-                        abs_seg = []
-                        for i in range(0, len(seg_norm) - 1, 2):
-                            abs_seg.append(seg_norm[i] * f["width"])
-                            abs_seg.append(seg_norm[i + 1] * f["height"])
-                        coco_ann["segmentation"] = [abs_seg]
-                    else:
-                        coco_ann["segmentation"] = []
-                    coco_annotations.append(coco_ann)
-                    ann_id += 1
+                    coco_ann = _obj_to_coco_ann(obj, ann_id, img_idx, f["width"], f["height"])
+                    if coco_ann:
+                        coco_annotations.append(coco_ann)
+                        ann_id += 1
 
             zf.writestr(
                 f"{split_name}/_annotations.coco.json",

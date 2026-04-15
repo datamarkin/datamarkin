@@ -32,13 +32,7 @@
                 </nav>
             </div>
             <div class="titlebar-right">
-{#                <a href="/settings" class="button is-small is-app {{ 'is-active' if active_tab == 'settings' }}"#}
-{#                   title="Settings">#}
-{#                    <span class="is-hidden-label">Settings</span>#}
-{#                    <span class="icon is-small">#}
-{#                      {% include 'icons/cog-6-tooth.svg' %}#}
-{#                    </span>#}
-{#                </a>#}
+                {% include '_activity_bar.html' %}
             </div>
         </div>
     {% endblock %}
@@ -57,6 +51,7 @@
     pointer-events: none;
 "></div>
 <script src="{{ url_for('static', filename='js/toast.js') }}"></script>
+<script src="{{ url_for('static', filename='js/activity-bar.js') }}"></script>
 <script src="{{ url_for('static', filename='js/update-check.js') }}"></script>
 </body>
 </html>

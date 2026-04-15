@@ -12,6 +12,7 @@ from flask import Blueprint, jsonify, request
 from PIL import Image as PILImage
 from pixelflow.assets import DownloadError
 
+import task_queue
 from config import DATA_DIR, file_path as get_file_path
 from queries import get_file_by_id, get_project_by_id, get_project_files, update_file_annotations, update_file_analyzed_labels
 from routes.download_api import update_download_state, clear_download_state
@@ -24,9 +25,6 @@ _engine = None
 _tokenizer = None
 _model_args = None
 _lock = threading.Lock()
-
-_batch_state = {"status": "idle", "current": 0, "total": 0, "file_id": None, "error": None}
-_batch_lock = threading.Lock()
 
 
 def _parse_labels(project):
@@ -275,10 +273,29 @@ def falcon_auto_annotate():
     return jsonify({"new_count": len(new_objects), "objects": new_objects})
 
 
+def _auto_annotate_executor(ctx):
+    """Task queue executor for batch auto-annotation."""
+    files = ctx.meta["files"]
+    labels = ctx.meta["labels"]
+    force = ctx.meta.get("force", False)
+
+    with _lock:
+        _ensure_loaded()
+        for i, file_row in enumerate(files):
+            if ctx.is_cancelled():
+                return
+            new_objects, merged, analyzed = _auto_annotate_file(
+                file_row, labels, force=force,
+            )
+            if new_objects:
+                update_file_annotations(file_row["id"], json.dumps({"objects": merged}))
+            update_file_analyzed_labels(file_row["id"], json.dumps(analyzed))
+            ctx.progress((i + 1) / len(files), f"{i + 1}/{len(files)} images")
+
+
 @falcon_perception_api.route("/auto_annotate_batch", methods=["POST"])
 def falcon_auto_annotate_batch():
     """Start batch auto-annotation for all project images."""
-    global _batch_state
     body = request.get_json(silent=True) or {}
     project_id = body.get("project_id")
     target = body.get("target", "all")
@@ -287,21 +304,12 @@ def falcon_auto_annotate_batch():
     if not project_id:
         return jsonify({"error": "project_id is required"}), 400
 
-    with _batch_lock:
-        if _batch_state["status"] == "running":
-            return jsonify({"error": "Batch already running"}), 409
-        _batch_state = {"status": "running", "current": 0, "total": 0, "file_id": None, "error": None}
-
     project = get_project_by_id(project_id)
     if not project:
-        with _batch_lock:
-            _batch_state = {"status": "error", "current": 0, "total": 0, "file_id": None, "error": "Project not found"}
         return jsonify({"error": "Project not found"}), 404
 
     labels = _parse_labels(project)
     if not labels:
-        with _batch_lock:
-            _batch_state = {"status": "error", "current": 0, "total": 0, "file_id": None, "error": "No labels"}
         return jsonify({"error": "Project has no labels"}), 400
 
     files = get_project_files(project_id)
@@ -323,42 +331,35 @@ def falcon_auto_annotate_batch():
         files = [f for f in files if _needs_analysis(f)]
 
     if not files:
-        with _batch_lock:
-            _batch_state = {"status": "done", "current": 0, "total": 0, "file_id": None, "error": None}
         return jsonify({"status": "done", "total": 0})
 
-    with _batch_lock:
-        _batch_state["total"] = len(files)
-
-    def run_batch():
-        global _batch_state
-        try:
-            with _lock:
-                _ensure_loaded()
-            for i, file_row in enumerate(files):
-                with _batch_lock:
-                    _batch_state["current"] = i + 1
-                    _batch_state["file_id"] = file_row["id"]
-
-                with _lock:
-                    new_objects, merged, analyzed = _auto_annotate_file(file_row, labels, force=force)
-                if new_objects:
-                    update_file_annotations(file_row["id"], json.dumps({"objects": merged}))
-                update_file_analyzed_labels(file_row["id"], json.dumps(analyzed))
-
-            with _batch_lock:
-                _batch_state["status"] = "done"
-        except Exception as e:
-            with _batch_lock:
-                _batch_state["status"] = "error"
-                _batch_state["error"] = str(e)
-
-    t = threading.Thread(target=run_batch, daemon=True)
-    t.start()
-    return jsonify({"status": "started", "total": len(files)})
+    task_id = task_queue.submit(
+        "auto_annotate",
+        _auto_annotate_executor,
+        label=f"Auto-annotating {project['name']}",
+        meta={"project_id": project_id, "force": force,
+              "files": files, "labels": labels},
+    )
+    return jsonify({"status": "started", "total": len(files), "task_id": task_id})
 
 
 @falcon_perception_api.route("/auto_annotate_batch_status", methods=["GET"])
 def falcon_auto_annotate_batch_status():
-    with _batch_lock:
-        return jsonify(dict(_batch_state))
+    """Backward-compatible status endpoint for auto-annotate.js polling."""
+    task = task_queue.find_recent_task("auto_annotate")
+    if not task:
+        return jsonify({"status": "idle", "current": 0, "total": 0, "file_id": None, "error": None})
+    total = len(task["meta"].get("files", []))
+    current = int(task["progress"] * total)
+    status = task["status"]
+    if status in ("cancelled", "done"):
+        status = "done"
+    elif status == "failed":
+        status = "error"
+    return jsonify({
+        "status": status,
+        "current": current,
+        "total": total,
+        "file_id": None,
+        "error": task.get("error"),
+    })

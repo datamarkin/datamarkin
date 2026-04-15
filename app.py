@@ -19,6 +19,7 @@ from routes.training_route import training_api
 from routes.predict_route import predict_api
 from routes.falcon_perception_api import falcon_perception_api
 from routes.download_api import download_api
+from routes.task_api import task_api
 from queries import (
     get_done_trainings_with_project, get_project_by_id, get_training,
     list_workflows, get_workflow_by_id, save_workflow, update_workflow, delete_workflow,
@@ -116,6 +117,7 @@ def create_app() -> Flask:
     app.register_blueprint(predict_api)
     app.register_blueprint(falcon_perception_api)
     app.register_blueprint(download_api)
+    app.register_blueprint(task_api)
 
     # AgentUI visual workflow builder — mounted at /agentui
     try:

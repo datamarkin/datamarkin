@@ -621,3 +621,60 @@ hr {
     pointer-events: none;
 }
 .oneof-list { min-height: 36px; }
+
+/* ── Activity bar ───────────────────────────────────────────────────────── */
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: .35; }
+}
+.activity-bar { position: relative; display: inline-block; }
+.activity-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: #48c774;
+    display: inline-block; margin-right: 4px;
+    vertical-align: middle;
+}
+.activity-dot.is-active { animation: pulse 1.5s infinite; }
+.activity-panel {
+    position: absolute; top: 100%; right: 0;
+    width: 360px; max-height: 400px; overflow-y: auto;
+    background: #faf8f4; border: 1px solid #e8d5b5;
+    border-radius: 8px; box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+    padding: 8px; margin-top: 4px; z-index: 9998;
+}
+.activity-panel-header {
+    padding: 4px 4px 6px; border-bottom: 1px solid #f0e8d8; margin-bottom: 6px;
+}
+.activity-task {
+    padding: 8px 10px; border-radius: 6px;
+    background: #fffdf7; margin-bottom: 6px;
+    border: 1px solid #f0e8d8;
+}
+.activity-task:last-child { margin-bottom: 0; }
+.activity-task-header { display: flex; align-items: center; gap: 6px; }
+.activity-task-dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    flex-shrink: 0;
+}
+.activity-task-dot.is-running { background: #48c774; animation: pulse 1.5s infinite; }
+.activity-task-dot.is-queued { background: #ccc; }
+.activity-task-dot.is-done { background: #48c774; }
+.activity-task-dot.is-failed { background: #f14668; }
+.activity-task-dot.is-cancelled { background: #aaa; }
+.activity-task-label { flex: 1; font-size: 13px; font-weight: 500; color: #333; }
+.activity-task-cancel {
+    background: none; border: none; color: #ccc; cursor: pointer;
+    font-size: 16px; line-height: 1; padding: 0 2px;
+}
+.activity-task-cancel:hover { color: #f14668; }
+.activity-task-progress {
+    background: #e8d5b5; border-radius: 4px;
+    height: 5px; overflow: hidden; margin-top: 6px;
+}
+.activity-task-bar {
+    background: #a08050; height: 100%;
+    border-radius: 4px; transition: width 0.3s;
+}
+.activity-task-detail { font-size: 11px; color: #999; margin-top: 3px; }
+.activity-task-error { color: #f14668; }
+.activity-task-empty { font-size: 12px; color: #ccc; text-align: center; padding: 12px; }
