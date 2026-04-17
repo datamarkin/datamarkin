@@ -339,3 +339,61 @@ def delete_workflow(workflow_id: str) -> None:
     conn.execute("DELETE FROM workflows WHERE id = ?", (workflow_id,))
     conn.commit()
     conn.close()
+
+
+# ── Danger zone queries ──────────────────────────────────────────────────────
+
+def clear_project_annotations(project_id: str) -> int:
+    conn = get_db()
+    cursor = conn.execute(
+        "UPDATE files SET annotations = NULL, updated_at = ? WHERE project_id = ?",
+        (now(), project_id),
+    )
+    conn.commit()
+    count = cursor.rowcount
+    conn.close()
+    return count
+
+
+def get_project_file_paths(project_id: str) -> list[tuple[str, str]]:
+    conn = get_db()
+    rows = conn.execute(
+        "SELECT id, filename FROM files WHERE project_id = ?", (project_id,)
+    ).fetchall()
+    conn.close()
+    return [(r["id"], r["filename"]) for r in rows]
+
+
+def delete_project_files(project_id: str) -> int:
+    conn = get_db()
+    cursor = conn.execute("DELETE FROM files WHERE project_id = ?", (project_id,))
+    conn.commit()
+    count = cursor.rowcount
+    conn.close()
+    return count
+
+
+def get_project_training_ids(project_id: str) -> list[str]:
+    conn = get_db()
+    rows = conn.execute(
+        "SELECT id FROM trainings WHERE project_id = ?", (project_id,)
+    ).fetchall()
+    conn.close()
+    return [r["id"] for r in rows]
+
+
+def delete_project(project_id: str) -> None:
+    conn = get_db()
+    conn.execute("DELETE FROM projects WHERE id = ?", (project_id,))
+    conn.commit()
+    conn.close()
+
+
+def has_active_training(project_id: str) -> bool:
+    conn = get_db()
+    row = conn.execute(
+        "SELECT COUNT(*) FROM trainings WHERE project_id = ? AND status IN ('running', 'pending')",
+        (project_id,),
+    ).fetchone()
+    conn.close()
+    return row[0] > 0

@@ -1,7 +1,10 @@
 import json
+import shutil
 
 from flask import Blueprint, jsonify, request
 
+from config import FILES_DIR, MODELS_DIR, TRAINING_JOBS_DIR
+from thumbnails import THUMBS_DIR, PRESETS
 from queries import (
     get_all_projects,
     get_project_by_id,
@@ -9,6 +12,12 @@ from queries import (
     get_project_files_paginated,
     get_file_by_id,
     update_file_annotations,
+    clear_project_annotations,
+    get_project_file_paths,
+    delete_project_files,
+    get_project_training_ids,
+    delete_project,
+    has_active_training,
 )
 
 api = Blueprint("api", __name__, url_prefix="/api")
@@ -116,3 +125,76 @@ def patch_file(file_id):
     annotations_json = json.dumps(body["annotations"]) if body["annotations"] is not None else None
     update_file_annotations(file_id, annotations_json)
     return api_response({"saved": True})
+
+
+# ── Danger zone ──────────────────────────────────────────────────────────────
+
+def _cleanup_file_assets(file_id, filename):
+    prefix = filename[:3]
+    (FILES_DIR / prefix / filename).unlink(missing_ok=True)
+    try:
+        (FILES_DIR / prefix).rmdir()
+    except OSError:
+        pass
+    for preset, cfg in PRESETS.items():
+        if cfg["save"]:
+            (THUMBS_DIR / preset / f"{file_id}.jpg").unlink(missing_ok=True)
+
+
+def _cleanup_training_assets(training_id):
+    (MODELS_DIR / f"{training_id}.pth").unlink(missing_ok=True)
+    job_dir = TRAINING_JOBS_DIR / training_id
+    if job_dir.is_dir():
+        shutil.rmtree(job_dir, ignore_errors=True)
+
+
+@api.route("/projects/<project_id>/annotations", methods=["DELETE"])
+def delete_all_annotations(project_id):
+    project = get_project_by_id(project_id)
+    if not project:
+        return api_error("Project not found", "not_found", 404)
+    count = clear_project_annotations(project_id)
+    return api_response({"deleted_annotations_from": count})
+
+
+@api.route("/projects/<project_id>/files", methods=["DELETE"])
+def delete_all_files(project_id):
+    project = get_project_by_id(project_id)
+    if not project:
+        return api_error("Project not found", "not_found", 404)
+    if has_active_training(project_id):
+        return api_error(
+            "Cannot delete files while a training is running. Stop it first.",
+            "training_active", 409,
+        )
+    file_records = get_project_file_paths(project_id)
+    count = delete_project_files(project_id)
+    for file_id, filename in file_records:
+        _cleanup_file_assets(file_id, filename)
+    return api_response({"deleted_files": count})
+
+
+@api.route("/projects/<project_id>", methods=["DELETE"])
+def delete_project_endpoint(project_id):
+    project = get_project_by_id(project_id)
+    if not project:
+        return api_error("Project not found", "not_found", 404)
+    body = request.get_json(silent=True) or {}
+    if (body.get("name") or "").strip() != project["name"]:
+        return api_error(
+            "Project name does not match. Type the exact project name to confirm.",
+            "name_mismatch", 400,
+        )
+    if has_active_training(project_id):
+        return api_error(
+            "Cannot delete project while a training is running. Stop it first.",
+            "training_active", 409,
+        )
+    file_records = get_project_file_paths(project_id)
+    training_ids = get_project_training_ids(project_id)
+    delete_project(project_id)
+    for file_id, filename in file_records:
+        _cleanup_file_assets(file_id, filename)
+    for tid in training_ids:
+        _cleanup_training_assets(tid)
+    return api_response({"deleted": True})

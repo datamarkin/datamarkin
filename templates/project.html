@@ -173,6 +173,13 @@
                         </span>
                         <span class="has-text-weight-normal">Export</span>
                     </button>
+                    <button class="button is-app is-fullwidth is-justify-content-left settings-nav-btn"
+                            data-panel="danger" style="margin-top:auto; color:#f14668;">
+                        <span class="icon is-small">
+                            {% include 'icons/exclamation-circle.svg' %}
+                        </span>
+                        <span class="has-text-weight-normal">Danger Zone</span>
+                    </button>
                 </div>
                 <div class="project-settings-content">
 
@@ -489,6 +496,61 @@
                         </div>
                     </div>
 
+                    <!-- Panel: Danger Zone -->
+                    <div class="settings-panel" id="panel-danger">
+                        <p class="is-size-6 has-text-weight-semibold mb-1" style="color:#f14668;">Danger Zone</p>
+                        <hr>
+                        <div class="danger-zone-action mb-5">
+                            <div class="is-flex is-justify-content-space-between is-align-items-center">
+                                <div>
+                                    <p class="has-text-weight-semibold is-size-7">Delete all annotations</p>
+                                    <p class="help">Clears annotations from every image in this project. Images are kept.</p>
+                                </div>
+                                <button type="button" class="button is-small is-danger is-outlined"
+                                        id="danger-delete-annotations-btn" style="flex-shrink:0">
+                                    Delete annotations
+                                </button>
+                            </div>
+                        </div>
+                        <div class="danger-zone-action mb-5">
+                            <div class="is-flex is-justify-content-space-between is-align-items-center">
+                                <div>
+                                    <p class="has-text-weight-semibold is-size-7">Delete all images</p>
+                                    <p class="help">Permanently removes all images and their annotations from this project.</p>
+                                </div>
+                                <button type="button" class="button is-small is-danger is-outlined"
+                                        id="danger-delete-files-btn" style="flex-shrink:0">
+                                    Delete all images
+                                </button>
+                            </div>
+                        </div>
+                        <div class="danger-zone-action">
+                            <div class="is-flex is-justify-content-space-between is-align-items-center">
+                                <div style="flex:1; margin-right:1rem;">
+                                    <p class="has-text-weight-semibold is-size-7">Delete this project</p>
+                                    <p class="help mb-2">Permanently deletes the project, all images, annotations, and trained models. This cannot be undone.</p>
+                                    <div id="danger-delete-project-confirm-field" style="display:none;">
+                                        <label class="label is-small has-text-weight-normal">
+                                            Type <strong>{{ project.name }}</strong> to confirm
+                                        </label>
+                                        <div class="control">
+                                            <input class="input is-small is-danger" type="text"
+                                                   id="danger-delete-project-name-input"
+                                                   placeholder="{{ project.name }}">
+                                        </div>
+                                    </div>
+                                </div>
+                                <div style="flex-shrink:0;">
+                                    <button type="button" class="button is-small is-danger"
+                                            id="danger-delete-project-btn">
+                                        Delete project
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        <p class="help has-text-grey mt-5" id="danger-zone-feedback"></p>
+                    </div>
+
                 </div>
             </div>
         </div>
@@ -585,6 +647,7 @@
     <script>
         var PAGE_CONFIG = {
             projectId: '{{ project.id }}',
+            projectName: {{ project.name | tojson }},
             preprocessing: {{ project.preprocessing | tojson }},
             augmentation: {{ project.augmentation | tojson }},
             configuration: {{ project.configuration | tojson }},

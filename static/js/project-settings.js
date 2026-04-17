@@ -281,4 +281,80 @@ function addSkeletonConnection(btn) {
             });
         });
     })();
+
+    // --- Danger Zone ---
+    (function () {
+        var feedback = document.getElementById('danger-zone-feedback');
+        function showFeedback(msg, isError) {
+            feedback.textContent = msg;
+            feedback.style.color = isError ? '#f14668' : '#4a9d78';
+            setTimeout(function () { feedback.textContent = ''; }, 4000);
+        }
+
+        // Delete all annotations
+        document.getElementById('danger-delete-annotations-btn').addEventListener('click', function () {
+            if (!confirm('Are you sure you want to delete ALL annotations from this project? This cannot be undone.')) return;
+            var btn = this;
+            btn.classList.add('is-loading');
+            fetch('/api/projects/' + projectId + '/annotations', {method: 'DELETE'})
+                .then(function (r) { return r.json(); })
+                .then(function (d) {
+                    btn.classList.remove('is-loading');
+                    if (d.error) { showFeedback(d.error.message, true); return; }
+                    showFeedback('Deleted annotations from ' + d.data.deleted_annotations_from + ' files.', false);
+                })
+                .catch(function () { btn.classList.remove('is-loading'); showFeedback('Network error', true); });
+        });
+
+        // Delete all images
+        document.getElementById('danger-delete-files-btn').addEventListener('click', function () {
+            if (!confirm('Are you sure you want to permanently delete ALL images from this project? This cannot be undone.')) return;
+            var btn = this;
+            btn.classList.add('is-loading');
+            fetch('/api/projects/' + projectId + '/files', {method: 'DELETE'})
+                .then(function (r) { return r.json(); })
+                .then(function (d) {
+                    btn.classList.remove('is-loading');
+                    if (d.error) { showFeedback(d.error.message, true); return; }
+                    showFeedback('Deleted ' + d.data.deleted_files + ' files.', false);
+                    setTimeout(function () { location.reload(); }, 1500);
+                })
+                .catch(function () { btn.classList.remove('is-loading'); showFeedback('Network error', true); });
+        });
+
+        // Delete project (two-step confirmation)
+        var deleteProjectBtn = document.getElementById('danger-delete-project-btn');
+        var confirmField = document.getElementById('danger-delete-project-confirm-field');
+        var nameInput = document.getElementById('danger-delete-project-name-input');
+        var confirmStep = false;
+
+        deleteProjectBtn.addEventListener('click', function () {
+            if (!confirmStep) {
+                confirmStep = true;
+                confirmField.style.display = '';
+                nameInput.focus();
+                deleteProjectBtn.textContent = 'Confirm delete';
+                return;
+            }
+            var typed = nameInput.value.trim();
+            if (typed !== PAGE_CONFIG.projectName) {
+                showFeedback('Project name does not match.', true);
+                nameInput.focus();
+                return;
+            }
+            deleteProjectBtn.classList.add('is-loading');
+            fetch('/api/projects/' + projectId, {
+                method: 'DELETE',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({name: typed})
+            })
+                .then(function (r) { return r.json(); })
+                .then(function (d) {
+                    deleteProjectBtn.classList.remove('is-loading');
+                    if (d.error) { showFeedback(d.error.message, true); return; }
+                    window.location.href = '/projects';
+                })
+                .catch(function () { deleteProjectBtn.classList.remove('is-loading'); showFeedback('Network error', true); });
+        });
+    })();
 })();
