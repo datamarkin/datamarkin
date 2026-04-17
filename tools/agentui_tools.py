@@ -95,15 +95,27 @@ class DatamarkinLocalModel(Tool):
                 pil_image = pil_image.convert("RGB")
             cv2_image = cv2.cvtColor(np.array(pil_image), cv2.COLOR_RGB2BGR)
 
-            model = DatamarkinLocalModel._model_manager.get_model(
-                "rfdetr",
-                training_id,
-                checkpoint_path=training["model_path"],
-                model_size=config.get("model_size", "base"),
-                project_type=config.get("project_type", "detection"),
-                resolution=config.get("resolution", 560),
-                class_names=class_names,
-            )
+            architecture = config.get("model_architecture", "rfdetr")
+            if architecture == "detectron2":
+                model = DatamarkinLocalModel._model_manager.get_model(
+                    "detectron2",
+                    training_id,
+                    checkpoint_path=training["model_path"],
+                    variant=config.get("variant", "mask_rcnn_R_50_FPN_3x"),
+                    class_names=class_names,
+                    num_classes=len(class_names),
+                    device="cpu",
+                )
+            else:
+                model = DatamarkinLocalModel._model_manager.get_model(
+                    "rfdetr",
+                    training_id,
+                    checkpoint_path=training["model_path"],
+                    model_size=config.get("model_size", "base"),
+                    project_type=config.get("project_type", "detection"),
+                    resolution=config.get("resolution", 560),
+                    class_names=class_names,
+                )
 
             detections = model.predict(cv2_image, threshold=confidence_threshold)
             self.outputs["detections"] = ToolOutput(detections, PortType.DETECTIONS)

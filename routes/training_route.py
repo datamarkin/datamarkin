@@ -236,6 +236,7 @@ def training_start():
     cfg = json.loads(project["configuration"] or "{}")
 
     config_snapshot = {
+        "model_architecture":      project.get("model_architecture") or "rfdetr",
         "model_size":              cfg.get("model_size", "base"),
         "epochs":                  cfg.get("epochs", 20),
         "batch_size":              cfg.get("batch_size", 4),

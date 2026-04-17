@@ -21,6 +21,30 @@ predict_api = Blueprint("predict_api", __name__)
 model_manager = ModelManager()
 
 
+def _load_model(architecture, training_id, training, cfg, project_type, class_names):
+    """Load a model via mozo, dispatching to the right family based on architecture."""
+    if architecture == "detectron2":
+        return model_manager.get_model(
+            'detectron2',
+            training_id,
+            checkpoint_path=training["model_path"],
+            variant=cfg.get("variant", "mask_rcnn_R_50_FPN_3x"),
+            class_names=class_names,
+            num_classes=len(class_names),
+            device='cpu',
+        )
+    # Default: RF-DETR
+    return model_manager.get_model(
+        'rfdetr',
+        training_id,
+        checkpoint_path=training["model_path"],
+        model_size=cfg.get("model_size", "base"),
+        project_type=project_type,
+        resolution=cfg.get("resolution", 560),
+        class_names=class_names,
+    )
+
+
 def mask_to_norm_polygon(mask: np.ndarray, img_w: int, img_h: int):
     """Convert a boolean H×W mask to a normalized flat polygon [x1,y1,x2,y2,...].
     Returns None if no valid contour is found."""
@@ -122,17 +146,10 @@ def predict_run():
     project_type = {"object_detection": "detection", "instance_segmentation": "segmentation"}.get(project_type, project_type)
 
     class_names = [label["name"] for label in labels]
+    model_architecture = cfg.get("model_architecture", "rfdetr")
 
     try:
-        model = model_manager.get_model(
-            'rfdetr',
-            training_id,
-            checkpoint_path=training["model_path"],
-            model_size=cfg.get("model_size", "base"),
-            project_type=project_type,
-            resolution=cfg.get("resolution", 560),
-            class_names=class_names,
-        )
+        model = _load_model(model_architecture, training_id, training, cfg, project_type, class_names)
     except Exception as e:
         return jsonify({"error": f"Failed to load model: {e}"}), 500
 
@@ -199,17 +216,10 @@ def predict():
 
     project_type = cfg.get("project_type", "detection")
     project_type = {"object_detection": "detection", "instance_segmentation": "segmentation"}.get(project_type, project_type)
+    model_architecture = cfg.get("model_architecture", "rfdetr")
 
     try:
-        model = model_manager.get_model(
-            'rfdetr',
-            training_id,
-            checkpoint_path=training["model_path"],
-            model_size=cfg.get("model_size", "base"),
-            project_type=project_type,
-            resolution=cfg.get("resolution", 560),
-            class_names=class_names,
-        )
+        model = _load_model(model_architecture, training_id, training, cfg, project_type, class_names)
     except Exception as e:
         return jsonify({"error": f"Failed to load model: {e}"}), 500
 
