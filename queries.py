@@ -131,6 +131,13 @@ def get_file_by_id(file_id: str) -> dict | None:
     return dict(row) if row else None
 
 
+def delete_file(file_id: str) -> None:
+    conn = get_db()
+    conn.execute("DELETE FROM files WHERE id = ?", (file_id,))
+    conn.commit()
+    conn.close()
+
+
 def insert_file(file_id, project_id, filename, extension, width, height, filesize):
     conn = get_db()
     ts = now()

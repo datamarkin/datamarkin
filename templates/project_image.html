@@ -44,16 +44,16 @@
         <div class="titlebar-right" style="text-align: right;">
             <span class="is-size-7 has-text-weight-bold"
                   style="margin-left: 8px;">{{ current_index + 1 }} / {{ files|length }}</span>
-            <a href="{{ url_for('project', project_id=project.id) }}" class="button is-small is-app" title="Back to project">
+            <button id="clear-annotations-btn" class="button is-small is-app" title="Clear annotations">
                 <span class="icon is-small">
                     {% include 'icons/exclamation-circle.svg' %}
                 </span>
-            </a>
-            <a href="{{ url_for('project', project_id=project.id) }}" class="button is-small is-app" title="Back to project">
+            </button>
+            <button id="delete-image-btn" class="button is-small is-app" title="Delete image">
                 <span class="icon is-small">
                     {% include 'icons/trash.svg' %}
                 </span>
-            </a>
+            </button>
             {% include '_activity_bar.html' %}
         </div>
     </div>
@@ -283,6 +283,49 @@
         const projectId = "{{ project.id }}";
         const projectType = "{{ project.type }}";
         const projectLabels = {{ project.labels | tojson | safe }};
+        const currentFileId = "{{ current_file.id }}";
+        const fileIds = {{ files | map(attribute='id') | list | tojson }};
+        const currentIndex = {{ current_index }};
+    </script>
+
+    <script>
+        document.getElementById('clear-annotations-btn').addEventListener('click', function () {
+            if (!confirm('Clear all annotations from this image?')) return;
+            var btn = this;
+            btn.classList.add('is-loading');
+            fetch('/api/files/' + currentFileId, {
+                method: 'PATCH',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({annotations: null})
+            })
+                .then(function (r) { return r.json(); })
+                .then(function (d) {
+                    btn.classList.remove('is-loading');
+                    if (d.error) { alert(d.error.message); return; }
+                    location.reload();
+                })
+                .catch(function () { btn.classList.remove('is-loading'); alert('Network error'); });
+        });
+
+        document.getElementById('delete-image-btn').addEventListener('click', function () {
+            if (!confirm('Delete this image? This cannot be undone.')) return;
+            var btn = this;
+            btn.classList.add('is-loading');
+            fetch('/api/files/' + currentFileId, {method: 'DELETE'})
+                .then(function (r) { return r.json(); })
+                .then(function (d) {
+                    btn.classList.remove('is-loading');
+                    if (d.error) { alert(d.error.message); return; }
+                    // Navigate to next image, or previous, or back to project
+                    var nextId = fileIds[currentIndex + 1] || fileIds[currentIndex - 1];
+                    if (nextId) {
+                        window.location.href = '/project/' + projectId + '/' + nextId;
+                    } else {
+                        window.location.href = '/project/' + projectId;
+                    }
+                })
+                .catch(function () { btn.classList.remove('is-loading'); alert('Network error'); });
+        });
     </script>
 
     <script src="{{ url_for('static', filename='js/studio.js') }}" defer></script>

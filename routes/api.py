@@ -11,6 +11,7 @@ from queries import (
     create_project,
     get_project_files_paginated,
     get_file_by_id,
+    delete_file,
     update_file_annotations,
     clear_project_annotations,
     get_project_file_paths,
@@ -125,6 +126,16 @@ def patch_file(file_id):
     annotations_json = json.dumps(body["annotations"]) if body["annotations"] is not None else None
     update_file_annotations(file_id, annotations_json)
     return api_response({"saved": True})
+
+
+@api.route("/files/<file_id>", methods=["DELETE"])
+def delete_file_endpoint(file_id):
+    file = get_file_by_id(file_id)
+    if not file:
+        return api_error("File not found", "not_found", 404)
+    delete_file(file_id)
+    _cleanup_file_assets(file_id, file["filename"])
+    return api_response({"deleted": True})
 
 
 # ── Danger zone ──────────────────────────────────────────────────────────────
