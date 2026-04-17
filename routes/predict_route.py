@@ -46,22 +46,27 @@ def load_model_from_training(training):
     cfg = training["config"] if isinstance(training["config"], dict) else json.loads(training["config"])
     training_id = training["id"]
     architecture = cfg.get("model_architecture", "rfdetr")
-    class_names = [label["name"] for label in cfg.get("labels", [])]
+    labels = cfg.get("labels", [])
     checkpoint = _resolve_model_path(training["model_path"])
 
     project_type = cfg.get("project_type", "detection")
     project_type = {"object_detection": "detection", "instance_segmentation": "segmentation"}.get(project_type, project_type)
 
     if architecture == "detectron2":
-        return model_manager.get_model(
-            'detectron2',
-            training_id,
+        # training_id is passed as the 'variant' positional arg (used as cache key by ModelManager).
+        # When config_path is set, the adapter loads config from file and doesn't need the variant name.
+        # When config_path is absent, variant is used for model zoo config lookup.
+        variant = cfg.get("variant", "mask_rcnn_R_50_FPN_3x")
+        kwargs = dict(
             checkpoint_path=checkpoint,
-            variant=cfg.get("variant", "mask_rcnn_R_50_FPN_3x"),
-            class_names=class_names,
-            num_classes=len(class_names),
+            labels=labels,
             device='cpu',
         )
+        config_path = cfg.get("config_path")
+        if config_path:
+            kwargs["config_path"] = str(_resolve_model_path(config_path))
+            return model_manager.get_model('detectron2', training_id, **kwargs)
+        return model_manager.get_model('detectron2', variant, **kwargs)
     # Default: RF-DETR
     return model_manager.get_model(
         'rfdetr',
@@ -70,7 +75,7 @@ def load_model_from_training(training):
         model_size=cfg.get("model_size", "base"),
         project_type=project_type,
         resolution=cfg.get("resolution", 560),
-        class_names=class_names,
+        labels=labels,
     )
 
 
@@ -135,6 +140,19 @@ def detections_to_objects(detections, labels, img_w: int, img_h: int,
                     obj["segmentation"] = poly
                     break  # Use first valid polygon
 
+        # Handle keypoints
+        if det.keypoints:
+            label_kps = labels[class_idx].get("keypoints", [])
+            kps = []
+            for kp in det.keypoints:
+                if not kp.visibility:
+                    continue
+                kp_id = next((k["id"] for k in label_kps if k["name"] == kp.name), None)
+                if kp_id is not None:
+                    kps.append({"id": kp_id, "point": [float(kp.x) / img_w, float(kp.y) / img_h]})
+            if kps:
+                obj["keypoints"] = kps
+
         objects.append(obj)
 
     return objects
@@ -170,6 +188,7 @@ def predict_run():
         return jsonify({"error": f"Failed to read image: {e}"}), 400
 
     img_w, img_h = image.size
+    image_np = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
 
     try:
         model = load_model_from_training(training)
@@ -177,16 +196,18 @@ def predict_run():
         return jsonify({"error": f"Failed to load model: {e}"}), 500
 
     try:
-        detections = model.predict(image, threshold=threshold)
+        detections = model.predict(image_np)
     except Exception as e:
         return jsonify({"error": f"Inference failed: {e}"}), 500
 
     # Draw detections on image using pixelflow annotators
-    annotated = np.array(image)
+    annotated = cv2.cvtColor(image_np, cv2.COLOR_BGR2RGB)
     if any(det.masks for det in detections):
         annotated = pf.annotators.mask(annotated, detections)
     annotated = pf.annotators.box(annotated, detections)
     annotated = pf.annotators.label(annotated, detections)
+    if any(det.keypoints for det in detections):
+        annotated = pf.annotators.keypoint(annotated, detections)
 
     buf = BytesIO()
     Image.fromarray(annotated).save(buf, format="JPEG", quality=90)
@@ -194,11 +215,17 @@ def predict_run():
 
     result = []
     for det in detections:
-        result.append({
+        entry = {
             "class_name": det.class_name,
             "bbox": [float(x) for x in det.bbox],
             "confidence": round(float(det.confidence), 4) if det.confidence is not None else None,
-        })
+        }
+        if det.keypoints:
+            entry["keypoints"] = [
+                {"name": kp.name, "x": kp.x, "y": kp.y, "visible": kp.visibility}
+                for kp in det.keypoints
+            ]
+        result.append(entry)
 
     return jsonify({
         "detections": result,
@@ -247,9 +274,10 @@ def predict():
         return jsonify({"error": f"Failed to load image: {e}"}), 500
 
     img_w, img_h = image.size
+    image_np = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
 
     try:
-        detections = model.predict(image, threshold=threshold)
+        detections = model.predict(image_np)
     except Exception as e:
         return jsonify({"error": f"Inference failed: {e}"}), 500
 
