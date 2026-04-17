@@ -58,14 +58,14 @@
                 <div class="drop-zone" id="drop-zone">
                     <span class="drop-zone-icon">+</span>
                     <span class="drop-zone-text" id="drop-zone-text">Drop image here or click to browse</span>
-                    <input type="file" id="file-input" accept="image/*" style="display:none">
+                    <input type="file" id="file-input" accept="image/*" multiple style="display:none">
                 </div>
             </div>
 
             <div class="field">
                 <div class="control">
                     <button class="button is-dark is-small is-fullwidth" id="run-btn">
-                        Run
+                        <span id="run-btn-text">Run</span>
                     </button>
                 </div>
             </div>
@@ -73,7 +73,39 @@
             <p class="help is-danger is-hidden" id="error-msg"></p>
         </div>
 
-        <div class="inference-results">
+        {% if mode == 'model' %}
+        <div class="inference-results" id="inference-results">
+            <div id="empty-state" class="inference-empty-state" style="margin:1.25rem">
+                <p class="has-text-grey-light">Drop images and click Run to see results</p>
+            </div>
+
+            <div id="batch-results" class="batch-results" style="display:none">
+                <div class="batch-images-col" id="batch-images"></div>
+
+                <div class="batch-table-col">
+                    <p class="is-size-7 has-text-grey mb-2" id="results-summary"></p>
+                    <div class="batch-table-scroll">
+                        <table class="table is-fullwidth is-narrow is-hoverable is-size-7">
+                            <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>File</th>
+                                <th>Class</th>
+                                <th>Confidence</th>
+                                <th>BBox (x1, y1, x2, y2)</th>
+                            </tr>
+                            </thead>
+                            <tbody id="results-tbody"></tbody>
+                        </table>
+                    </div>
+                    <div class="mt-2" id="csv-download-wrap" style="display:none">
+                        <a href="#" class="button is-small is-outlined" id="download-csv-btn">Download CSV</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% else %}
+        <div class="inference-results is-workflow">
             <div class="inference-preview-wrap" id="preview-wrap" style="display:none">
                 <img id="preview-img" src="" alt="Preview" style="display:block; max-width:100%; height:auto;">
             </div>
@@ -97,6 +129,7 @@
                 </table>
             </div>
         </div>
+        {% endif %}
     </div>
 
     <style>
@@ -125,9 +158,13 @@
 
         .inference-results {
             flex: 1;
+            overflow: hidden;
+            background: #fffdf7;
+        }
+
+        .inference-results.is-workflow {
             padding: 1.25rem;
             overflow-y: auto;
-            background: #fffdf7;
         }
 
         .inference-preview-wrap {
@@ -159,6 +196,71 @@
             height: 14px;
             border-radius: 50%;
             background: #2a2a2a;
+            cursor: pointer;
+        }
+
+        /* ---- Batch results two-column split ---- */
+        .batch-results {
+            display: flex;
+            height: 100%;
+        }
+
+        .batch-images-col {
+            flex: 1;
+            overflow-y: auto;
+            padding: 1rem;
+            border-right: 1px solid #e8dfc8;
+        }
+
+        .batch-images-col .batch-image-card {
+            margin-bottom: 0.75rem;
+            cursor: pointer;
+            border-radius: 6px;
+            overflow: hidden;
+            border: 2px solid transparent;
+            transition: border-color 0.15s;
+        }
+
+        .batch-images-col .batch-image-card.is-active {
+            border-color: #3273dc;
+        }
+
+        .batch-images-col .batch-image-card.is-processing {
+            opacity: 0.5;
+        }
+
+        .batch-images-col .batch-image-card img {
+            display: block;
+            width: 100%;
+        }
+
+        .batch-images-col .batch-image-card .batch-image-name {
+            font-size: 0.7rem;
+            color: #888;
+            padding: 4px 6px;
+            background: #faf8f4;
+        }
+
+        .batch-table-col {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            padding: 1rem;
+            min-width: 0;
+            overflow: hidden;
+        }
+
+        .batch-table-scroll {
+            flex: 1;
+            overflow-y: auto;
+            min-height: 0;
+        }
+
+        .batch-table-col .table tr.is-image-active {
+            background: rgba(50, 115, 220, 0.06);
+        }
+
+        .batch-table-col .table tr {
             cursor: pointer;
         }
     </style>

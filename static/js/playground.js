@@ -1,7 +1,5 @@
 /**
  * Studio playground — image upload, model/workflow inference, results display.
- * Used by studio_playground.html.
- *
  * Expects PAGE_CONFIG: { mode, trainingId, workflowJson }
  */
 (function () {
@@ -11,159 +9,359 @@
 
     var dropZone = document.getElementById('drop-zone');
     var fileInput = document.getElementById('file-input');
-    var previewImg = document.getElementById('preview-img');
-    var previewWrap = document.getElementById('preview-wrap');
     var runBtn = document.getElementById('run-btn');
+    var runBtnText = document.getElementById('run-btn-text');
     var threshRange = document.getElementById('threshold-range');
     var threshDisp = document.getElementById('threshold-display');
     var errorMsg = document.getElementById('error-msg');
     var emptyState = document.getElementById('empty-state');
-    var resultsSection = document.getElementById('results-section');
-    var resultsTbody = document.getElementById('results-tbody');
-    var resultsSummary = document.getElementById('results-summary');
-
-    var selectedFile = null;
-    var selectedDataURI = null;
+    var dropZoneText = document.getElementById('drop-zone-text');
 
     if (threshRange) {
-        threshRange.addEventListener('input', function() {
+        threshRange.addEventListener('input', function () {
             threshDisp.textContent = parseFloat(threshRange.value).toFixed(2);
         });
     }
 
-    dropZone.addEventListener('click', function() { fileInput.click(); });
-    dropZone.addEventListener('dragover', function(e) {
-        e.preventDefault();
-        dropZone.classList.add('is-dragover');
-    });
-    dropZone.addEventListener('dragleave', function() { dropZone.classList.remove('is-dragover'); });
-    dropZone.addEventListener('drop', function(e) {
-        e.preventDefault();
-        dropZone.classList.remove('is-dragover');
-        var file = e.dataTransfer.files[0];
-        if (file && file.type.startsWith('image/')) loadFile(file);
-    });
-    fileInput.addEventListener('change', function() {
-        if (fileInput.files[0]) loadFile(fileInput.files[0]);
-    });
+    dropZone.addEventListener('click', function () { fileInput.click(); });
+    dropZone.addEventListener('dragover', function (e) { e.preventDefault(); dropZone.classList.add('is-dragover'); });
+    dropZone.addEventListener('dragleave', function () { dropZone.classList.remove('is-dragover'); });
 
-    function loadFile(file) {
-        selectedFile = file;
-        document.getElementById('drop-zone-text').textContent = file.name;
-        var reader = new FileReader();
-        reader.onload = function(e) {
-            selectedDataURI = e.target.result;
-            previewImg.src = selectedDataURI;
-            emptyState.style.display = 'none';
-            previewWrap.style.display = '';
-            resultsSection.style.display = 'none';
+    function showError(msg) { errorMsg.textContent = msg; errorMsg.classList.remove('is-hidden'); }
+    function hideError() { errorMsg.textContent = ''; errorMsg.classList.add('is-hidden'); }
+    function escapeHtml(s) { var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+    function buildKeypointMap(det) { var m = {}; if (det.keypoints) det.keypoints.forEach(function (kp) { m[kp.name] = kp; }); return m; }
+
+    // ========================================================================
+    // MODEL MODE — batch
+    // ========================================================================
+    if (MODE === 'model') {
+        var imagesCol = document.getElementById('batch-images');
+        var batchResults = document.getElementById('batch-results');
+        var resultsTbody = document.getElementById('results-tbody');
+        var resultsSummary = document.getElementById('results-summary');
+        var csvWrap = document.getElementById('csv-download-wrap');
+
+        var batchItems = []; // [{file, fileName, dataURI, annotatedImage, detections, cardEl}]
+        var isRunning = false;
+        var activeIndex = -1;
+        var keypointNames = null; // discovered from first detection with keypoints
+
+        dropZone.addEventListener('drop', function (e) {
+            e.preventDefault();
+            dropZone.classList.remove('is-dragover');
+            if (e.dataTransfer.files.length > 0) loadFiles(e.dataTransfer.files);
+        });
+        fileInput.addEventListener('change', function () {
+            if (fileInput.files.length > 0) loadFiles(fileInput.files);
+            fileInput.value = '';
+        });
+
+        function loadFiles(fileList) {
+            var files = Array.from(fileList).filter(function (f) { return f.type.startsWith('image/'); });
+            if (!files.length) return;
+
+            batchItems = [];
+            activeIndex = -1;
+            imagesCol.innerHTML = '';
             resultsTbody.innerHTML = '';
-        };
-        reader.readAsDataURL(file);
-    }
+            batchResults.style.display = 'none';
+            emptyState.style.display = '';
+            csvWrap.style.display = 'none';
+            resultsSummary.textContent = '';
 
-    function showResults(items) {
-        resultsTbody.innerHTML = '';
-        items.forEach(function(item, i) {
-            var name = item.class_name || 'unknown';
-            var coords = item.bbox.map(function(v) { return Math.round(v); }).join(', ');
-            var row = document.createElement('tr');
-            row.innerHTML =
-                '<td>' + (i + 1) + '</td>' +
-                '<td>' + name + '</td>' +
-                '<td>' + (item.confidence ? Math.round(item.confidence * 100) + '%' : '—') + '</td>' +
-                '<td style="font-family:monospace">' + coords + '</td>';
-            resultsTbody.appendChild(row);
-        });
-        resultsSummary.textContent = items.length + ' detection' + (items.length !== 1 ? 's' : '');
-        resultsSection.style.display = '';
-    }
-
-    function runModel() {
-        var formData = new FormData();
-        formData.append('file', selectedFile);
-        formData.append('training_id', TRAINING_ID);
-        formData.append('threshold', threshRange.value);
-
-        return fetch('/api/predict/run', {method: 'POST', body: formData})
-            .then(function(resp) {
-                return resp.json().then(function(data) {
-                    if (!resp.ok) throw new Error(data.error || 'Inference failed');
-                    previewImg.src = data.annotated_image;
-                    showResults(data.detections);
-                });
+            files.forEach(function (file) {
+                var item = { file: file, fileName: file.name, dataURI: null, annotatedImage: null, detections: null, cardEl: null };
+                batchItems.push(item);
+                var reader = new FileReader();
+                reader.onload = function (e) { item.dataURI = e.target.result; };
+                reader.readAsDataURL(file);
             });
-    }
 
-    function runWorkflow() {
-        var wf = JSON.parse(JSON.stringify(WORKFLOW_JSON));
-        var nodes = wf.nodes || [];
-        var mediaNode = nodes.find(function(n) { return n.data && (n.data.toolType === 'MediaInput' || n.data.nodeType === 'MediaInput'); });
-        if (!mediaNode) throw new Error('This workflow has no image input (MediaInput node).');
-        if (!mediaNode.data.parameters) mediaNode.data.parameters = {};
-        mediaNode.data.parameters.data = selectedDataURI;
-
-        return fetch('/agentui/api/workflow/execute', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({workflow: wf}),
-        })
-        .then(function(resp) { return resp.json(); })
-        .then(function(data) {
-            if (!data.success) throw new Error(data.error || 'Workflow execution failed');
-
-            var outputImage = null;
-            var outputDetections = null;
-
-            for (var nodeId in data.results) {
-                var result = data.results[nodeId];
-                if (!result.is_terminal) continue;
-                for (var key in result.outputs) {
-                    var value = result.outputs[key];
-                    if (typeof value === 'string' && value.startsWith('data:image/')) {
-                        outputImage = value;
-                    } else if (Array.isArray(value) && value.length > 0 && value[0].bbox) {
-                        outputDetections = value;
-                    }
-                }
-            }
-
-            if (outputImage) previewImg.src = outputImage;
-            if (outputDetections) showResults(outputDetections);
-
-            if (!outputImage && !outputDetections) {
-                resultsSummary.textContent = 'Workflow produced no visual output';
-                resultsSection.style.display = '';
-            }
-        });
-    }
-
-    runBtn.addEventListener('click', function() {
-        if (!selectedFile) {
-            showError('Please drop an image first.');
-            return;
+            dropZoneText.textContent = files.length === 1 ? files[0].name : files.length + ' images selected';
         }
 
-        hideError();
-        runBtn.classList.add('is-loading');
-        runBtn.disabled = true;
+        function highlightImage(idx) {
+            activeIndex = idx;
+            var cards = imagesCol.querySelectorAll('.batch-image-card');
+            for (var i = 0; i < cards.length; i++) cards[i].classList.toggle('is-active', i === idx);
+            var rows = resultsTbody.querySelectorAll('tr');
+            var firstMatch = null;
+            for (var j = 0; j < rows.length; j++) {
+                var match = parseInt(rows[j].dataset.imageIndex) === idx;
+                rows[j].classList.toggle('is-image-active', match);
+                if (match && !firstMatch) firstMatch = rows[j];
+            }
+            if (firstMatch) firstMatch.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
 
-        var p = MODE === 'model' ? runModel() : runWorkflow();
-        p.catch(function(e) {
-            showError(e.message);
-        }).then(function() {
-            runBtn.classList.remove('is-loading');
-            runBtn.disabled = false;
+        // ---- Run ----
+        runBtn.addEventListener('click', function () {
+            if (!batchItems.length) { showError('Please drop images first.'); return; }
+            if (isRunning) return;
+            hideError();
+            isRunning = true;
+            activeIndex = -1;
+
+            var total = batchItems.length;
+            var completed = 0;
+            var globalRow = 0;
+
+            batchItems.forEach(function (item) { item.annotatedImage = null; item.detections = null; item.cardEl = null; });
+            imagesCol.innerHTML = '';
+            resultsTbody.innerHTML = '';
+            keypointNames = null;
+            var thead = resultsTbody.closest('table').querySelector('thead tr');
+            var BASE_COLUMN_COUNT = 5; // #, File, Class, Confidence, BBox
+            while (thead.children.length > BASE_COLUMN_COUNT) thead.removeChild(thead.lastChild);
+            csvWrap.style.display = 'none';
+            resultsSummary.textContent = '';
+            emptyState.style.display = 'none';
+            batchResults.style.display = '';
+            runBtn.disabled = true;
+
+            function processNext() {
+                if (completed >= total) {
+                    isRunning = false;
+                    runBtnText.textContent = 'Run';
+                    runBtn.disabled = false;
+                    var n = 0;
+                    batchItems.forEach(function (it) { if (it.detections) n += it.detections.length; });
+                    resultsSummary.textContent = n + ' detection' + (n !== 1 ? 's' : '') + ' across ' + total + ' image' + (total !== 1 ? 's' : '');
+                    if (n > 0) csvWrap.style.display = '';
+                    return;
+                }
+
+                var idx = completed;
+                var item = batchItems[idx];
+                runBtnText.textContent = 'Running ' + (idx + 1) + '/' + total + '\u2026';
+
+                var card = document.createElement('div');
+                card.className = 'batch-image-card is-processing';
+                var img = document.createElement('img');
+                img.src = item.dataURI;
+                img.alt = item.fileName;
+                card.appendChild(img);
+                var nameEl = document.createElement('div');
+                nameEl.className = 'batch-image-name';
+                nameEl.textContent = item.fileName;
+                card.appendChild(nameEl);
+                imagesCol.appendChild(card);
+                item.cardEl = card;
+
+                (function (capturedIdx) {
+                    card.addEventListener('click', function () { highlightImage(capturedIdx); });
+                })(idx);
+
+                var formData = new FormData();
+                formData.append('file', item.file);
+                formData.append('training_id', TRAINING_ID);
+                formData.append('threshold', threshRange.value);
+
+                fetch('/api/predict/run', { method: 'POST', body: formData })
+                    .then(function (resp) {
+                        return resp.json().then(function (data) {
+                            if (!resp.ok) throw new Error(data.error || 'Inference failed');
+                            return data;
+                        });
+                    })
+                    .then(function (data) {
+                        item.annotatedImage = data.annotated_image;
+                        item.detections = data.detections;
+                        item.dataURI = null;
+                        card.classList.remove('is-processing');
+                        card.querySelector('img').src = data.annotated_image;
+
+                        if (!keypointNames && data.detections) {
+                            var firstWithKp = data.detections.find(function (d) { return d.keypoints && d.keypoints.length; });
+                            if (firstWithKp) {
+                                keypointNames = firstWithKp.keypoints.map(function (kp) { return kp.name; });
+                                var frag = document.createDocumentFragment();
+                                keypointNames.forEach(function (name) {
+                                    var thX = document.createElement('th');
+                                    thX.textContent = name + '-x';
+                                    frag.appendChild(thX);
+                                    var thY = document.createElement('th');
+                                    thY.textContent = name + '-y';
+                                    frag.appendChild(thY);
+                                });
+                                thead.appendChild(frag);
+                            }
+                        }
+
+                        var rowFrag = document.createDocumentFragment();
+                        (item.detections || []).forEach(function (det) {
+                            globalRow++;
+                            var row = document.createElement('tr');
+                            row.dataset.imageIndex = idx;
+                            var coords = det.bbox.map(function (v) { return Math.round(v); }).join(', ');
+                            var html =
+                                '<td>' + globalRow + '</td>' +
+                                '<td title="' + escapeHtml(item.fileName) + '" style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + escapeHtml(item.fileName) + '</td>' +
+                                '<td>' + escapeHtml(det.class_name || 'unknown') + '</td>' +
+                                '<td>' + (det.confidence ? Math.round(det.confidence * 100) + '%' : '\u2014') + '</td>' +
+                                '<td style="font-family:monospace">' + coords + '</td>';
+                            if (keypointNames) {
+                                var kpMap = buildKeypointMap(det);
+                                keypointNames.forEach(function (name) {
+                                    var kp = kpMap[name];
+                                    html += '<td style="font-family:monospace">' + (kp ? Math.round(kp.x) : '\u2014') + '</td>';
+                                    html += '<td style="font-family:monospace">' + (kp ? Math.round(kp.y) : '\u2014') + '</td>';
+                                });
+                            }
+                            row.innerHTML = html;
+                            (function (capturedIdx) {
+                                row.addEventListener('click', function () {
+                                    highlightImage(capturedIdx);
+                                    batchItems[capturedIdx].cardEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                                });
+                            })(idx);
+                            rowFrag.appendChild(row);
+                        });
+                        resultsTbody.appendChild(rowFrag);
+
+                        completed++;
+                        processNext();
+                    })
+                    .catch(function (e) {
+                        card.classList.remove('is-processing');
+                        card.style.opacity = '0.3';
+                        nameEl.textContent = item.fileName + ' — error';
+                        completed++;
+                        processNext();
+                    });
+            }
+
+            processNext();
         });
-    });
 
-    function showError(msg) {
-        errorMsg.textContent = msg;
-        errorMsg.classList.remove('is-hidden');
-    }
+        // ---- CSV ----
+        document.getElementById('download-csv-btn').addEventListener('click', function (e) {
+            e.preventDefault();
+            var header = '#,File,Class,Confidence,BBox';
+            if (keypointNames) keypointNames.forEach(function (name) { header += ',' + name + '-x,' + name + '-y'; });
+            var lines = [header];
+            var c = 0;
+            batchItems.forEach(function (item) {
+                if (!item.detections) return;
+                item.detections.forEach(function (det) {
+                    c++;
+                    var line = c + ',"' + item.fileName.replace(/"/g, '""') + '","' + (det.class_name || 'unknown') + '",' + (det.confidence ? (det.confidence * 100).toFixed(1) + '%' : '') + ',"' + det.bbox.map(function (v) { return Math.round(v); }).join(' ') + '"';
+                    if (keypointNames) {
+                        var kpMap = buildKeypointMap(det);
+                        keypointNames.forEach(function (name) {
+                            var kp = kpMap[name];
+                            line += ',' + (kp ? Math.round(kp.x) : '') + ',' + (kp ? Math.round(kp.y) : '');
+                        });
+                    }
+                    lines.push(line);
+                });
+            });
+            var blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+            var url = URL.createObjectURL(blob);
+            var a = document.createElement('a');
+            a.href = url;
+            a.download = 'detections.csv';
+            a.click();
+            URL.revokeObjectURL(url);
+        });
 
-    function hideError() {
-        errorMsg.textContent = '';
-        errorMsg.classList.add('is-hidden');
+    // ========================================================================
+    // WORKFLOW MODE — single image (unchanged)
+    // ========================================================================
+    } else {
+        var previewImg = document.getElementById('preview-img');
+        var previewWrap = document.getElementById('preview-wrap');
+        var resultsSection = document.getElementById('results-section');
+        var resultsTbody = document.getElementById('results-tbody');
+        var resultsSummary = document.getElementById('results-summary');
+        var selectedFile = null;
+        var selectedDataURI = null;
+
+        dropZone.addEventListener('drop', function (e) {
+            e.preventDefault();
+            dropZone.classList.remove('is-dragover');
+            var file = e.dataTransfer.files[0];
+            if (file && file.type.startsWith('image/')) loadFile(file);
+        });
+        fileInput.addEventListener('change', function () {
+            if (fileInput.files[0]) loadFile(fileInput.files[0]);
+        });
+
+        function loadFile(file) {
+            selectedFile = file;
+            dropZoneText.textContent = file.name;
+            var reader = new FileReader();
+            reader.onload = function (e) {
+                selectedDataURI = e.target.result;
+                previewImg.src = selectedDataURI;
+                emptyState.style.display = 'none';
+                previewWrap.style.display = '';
+                resultsSection.style.display = 'none';
+                resultsTbody.innerHTML = '';
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function showResults(items) {
+            resultsTbody.innerHTML = '';
+            items.forEach(function (item, i) {
+                var row = document.createElement('tr');
+                row.innerHTML =
+                    '<td>' + (i + 1) + '</td>' +
+                    '<td>' + (item.class_name || 'unknown') + '</td>' +
+                    '<td>' + (item.confidence ? Math.round(item.confidence * 100) + '%' : '\u2014') + '</td>' +
+                    '<td style="font-family:monospace">' + item.bbox.map(function (v) { return Math.round(v); }).join(', ') + '</td>';
+                resultsTbody.appendChild(row);
+            });
+            resultsSummary.textContent = items.length + ' detection' + (items.length !== 1 ? 's' : '');
+            resultsSection.style.display = '';
+        }
+
+        function runWorkflow() {
+            var wf = JSON.parse(JSON.stringify(WORKFLOW_JSON));
+            var nodes = wf.nodes || [];
+            var mediaNode = nodes.find(function (n) { return n.data && (n.data.toolType === 'MediaInput' || n.data.nodeType === 'MediaInput'); });
+            if (!mediaNode) throw new Error('This workflow has no image input (MediaInput node).');
+            if (!mediaNode.data.parameters) mediaNode.data.parameters = {};
+            mediaNode.data.parameters.data = selectedDataURI;
+
+            return fetch('/agentui/api/workflow/execute', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ workflow: wf }),
+            })
+            .then(function (resp) { return resp.json(); })
+            .then(function (data) {
+                if (!data.success) throw new Error(data.error || 'Workflow execution failed');
+                var outputImage = null, outputDetections = null;
+                for (var nodeId in data.results) {
+                    var result = data.results[nodeId];
+                    if (!result.is_terminal) continue;
+                    for (var key in result.outputs) {
+                        var value = result.outputs[key];
+                        if (typeof value === 'string' && value.startsWith('data:image/')) outputImage = value;
+                        else if (Array.isArray(value) && value.length > 0 && value[0].bbox) outputDetections = value;
+                    }
+                }
+                if (outputImage) previewImg.src = outputImage;
+                if (outputDetections) showResults(outputDetections);
+                if (!outputImage && !outputDetections) {
+                    resultsSummary.textContent = 'Workflow produced no visual output';
+                    resultsSection.style.display = '';
+                }
+            });
+        }
+
+        runBtn.addEventListener('click', function () {
+            if (!selectedFile) { showError('Please drop an image first.'); return; }
+            hideError();
+            runBtn.classList.add('is-loading');
+            runBtn.disabled = true;
+            runWorkflow().catch(function (e) { showError(e.message); }).then(function () {
+                runBtn.classList.remove('is-loading');
+                runBtn.disabled = false;
+            });
+        });
     }
 })();
