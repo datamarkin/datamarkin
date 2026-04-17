@@ -60,6 +60,15 @@ try:
 except ImportError:
     pass
 
+# Detectron2 model zoo YAML configs + base configs (needed by model_zoo.get_config_file())
+try:
+    import detectron2
+    d2_dir = Path(detectron2.__path__[0])
+    datas.append((str(d2_dir / "model_zoo"), "detectron2/model_zoo"))
+    datas.append((str(d2_dir / "config"), "detectron2/config"))
+except ImportError:
+    pass
+
 # ── Hidden imports ───────────────────────────────────────────────────────────
 # Packages PyInstaller can't auto-detect (compiled extensions, dynamic imports)
 
@@ -82,6 +91,8 @@ hiddenimports = [
     "mlx", "mlx.core", "mlx.nn",
     # Geometry
     "shapely",
+    # Detectron2
+    "detectron2", "fvcore", "iopath",
     # Data processing
     "pycocotools", "matplotlib", "contourpy", "kiwisolver", "fontTools",
     # Serialization
@@ -116,6 +127,9 @@ hiddenimports += collect_submodules("mozo")
 hiddenimports += collect_submodules("pytorch_lightning")
 hiddenimports += collect_submodules("lightning_utilities")
 hiddenimports += collect_submodules("mlx")
+hiddenimports += collect_submodules("detectron2")
+hiddenimports += collect_submodules("fvcore")
+hiddenimports += collect_submodules("iopath")
 
 try:
     hiddenimports += collect_submodules("efficient_track_anything")
