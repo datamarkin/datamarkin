@@ -74,8 +74,6 @@ class DatamarkinLocalModel(Tool):
             print("DatamarkinLocalModel: no training_id selected")
             return False
 
-        confidence_threshold = float(self.parameters.get("confidence_threshold", 0.5))
-
         from queries import get_training
         training = get_training(training_id)
         if not training or training["status"] != "done":
@@ -91,7 +89,7 @@ class DatamarkinLocalModel(Tool):
             cv2_image = cv2.cvtColor(np.array(pil_image), cv2.COLOR_RGB2BGR)
 
             model = load_model_from_training(training)
-            detections = model.predict(cv2_image, threshold=confidence_threshold)
+            detections = model.predict(cv2_image)
             self.outputs["detections"] = ToolOutput(detections, PortType.DETECTIONS)
             return True
 
@@ -108,6 +106,5 @@ METADATA = {
     "description": "Run inference using your locally trained Datamarkin models.",
     "parameters": {
         "training_id": "",
-        "confidence_threshold": 0.5,
     },
 }
