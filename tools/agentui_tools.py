@@ -13,21 +13,14 @@ from PIL import Image
 from agentui.core.tool import Port, PortType, Tool, ToolOutput
 
 try:
-    from mozo.manager import ModelManager
-    MOZO_AVAILABLE = True
+    from routes.predict_route import load_model_from_training
+    PREDICT_AVAILABLE = True
 except ImportError:
-    MOZO_AVAILABLE = False
+    PREDICT_AVAILABLE = False
 
 
 class DatamarkinLocalModel(Tool):
     """Run inference using a locally trained Datamarkin model."""
-
-    _model_manager: Optional[object] = None
-
-    def __init__(self, tool_id=None, **kwargs):
-        super().__init__(tool_id, **kwargs)
-        if MOZO_AVAILABLE and DatamarkinLocalModel._model_manager is None:
-            DatamarkinLocalModel._model_manager = ModelManager()
 
     @property
     def tool_type(self) -> str:
@@ -48,14 +41,18 @@ class DatamarkinLocalModel(Tool):
         options = []
         for t in trainings:
             config = json.loads(t.get("config") or "{}")
-            project = get_project_by_id(t["project_id"])
-            project_name = project["name"] if project else "Unknown"
-            model_size = config.get("model_size", "base")
-            metrics = json.loads(t.get("metrics") or "{}")
-            map_val = metrics.get("mAP50", "")
-            label = f"{project_name} ({model_size})"
-            if map_val:
-                label += f" — mAP50: {map_val:.2f}"
+            project = get_project_by_id(t["project_id"]) if t.get("project_id") else None
+            project_name = project["name"] if project else config.get("name", "Built-in Model")
+            arch = config.get("model_architecture", "rfdetr")
+            if arch == "detectron2":
+                label = f"{project_name} ({config.get('variant', 'detectron2')})"
+            else:
+                model_size = config.get("model_size", "base")
+                metrics = json.loads(t.get("metrics") or "{}")
+                map_val = metrics.get("mAP50", "")
+                label = f"{project_name} ({model_size})"
+                if map_val:
+                    label += f" — mAP50: {map_val:.2f}"
             options.append({"value": t["id"], "label": label})
         return {
             "training_id": {
@@ -65,8 +62,8 @@ class DatamarkinLocalModel(Tool):
         }
 
     def process(self) -> bool:
-        if not MOZO_AVAILABLE:
-            print("DatamarkinLocalModel: mozo not installed")
+        if not PREDICT_AVAILABLE:
+            print("DatamarkinLocalModel: predict route not available")
             return False
         if "image" not in self.inputs:
             print("DatamarkinLocalModel: no input image")
@@ -79,15 +76,13 @@ class DatamarkinLocalModel(Tool):
 
         confidence_threshold = float(self.parameters.get("confidence_threshold", 0.5))
 
-        from queries import get_done_trainings
-        trainings = get_done_trainings()
-        training = next((t for t in trainings if t["id"] == training_id), None)
-        if not training:
+        from queries import get_training
+        training = get_training(training_id)
+        if not training or training["status"] != "done":
             print(f"DatamarkinLocalModel: training {training_id!r} not found or not complete")
             return False
 
-        config = json.loads(training.get("config") or "{}")
-        class_names = [label["name"] for label in config.get("labels", [])]
+        training["config"] = json.loads(training.get("config") or "{}")
 
         try:
             pil_image = self.inputs["image"].data
@@ -95,28 +90,7 @@ class DatamarkinLocalModel(Tool):
                 pil_image = pil_image.convert("RGB")
             cv2_image = cv2.cvtColor(np.array(pil_image), cv2.COLOR_RGB2BGR)
 
-            architecture = config.get("model_architecture", "rfdetr")
-            if architecture == "detectron2":
-                model = DatamarkinLocalModel._model_manager.get_model(
-                    "detectron2",
-                    training_id,
-                    checkpoint_path=training["model_path"],
-                    variant=config.get("variant", "mask_rcnn_R_50_FPN_3x"),
-                    class_names=class_names,
-                    num_classes=len(class_names),
-                    device="cpu",
-                )
-            else:
-                model = DatamarkinLocalModel._model_manager.get_model(
-                    "rfdetr",
-                    training_id,
-                    checkpoint_path=training["model_path"],
-                    model_size=config.get("model_size", "base"),
-                    project_type=config.get("project_type", "detection"),
-                    resolution=config.get("resolution", 560),
-                    class_names=class_names,
-                )
-
+            model = load_model_from_training(training)
             detections = model.predict(cv2_image, threshold=confidence_threshold)
             self.outputs["detections"] = ToolOutput(detections, PortType.DETECTIONS)
             return True

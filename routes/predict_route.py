@@ -11,7 +11,9 @@ import pixelflow as pf
 from flask import Blueprint, jsonify, request
 from PIL import Image
 
-from config import file_path
+from pathlib import Path
+
+from config import DATA_DIR, file_path
 from queries import get_file_by_id, get_training
 from mozo import ModelManager
 
@@ -21,13 +23,40 @@ predict_api = Blueprint("predict_api", __name__)
 model_manager = ModelManager()
 
 
-def _load_model(architecture, training_id, training, cfg, project_type, class_names):
-    """Load a model via mozo, dispatching to the right family based on architecture."""
+def _resolve_model_path(model_path):
+    """Return a local file path for model weights.
+
+    If the path already exists on disk (e.g. RF-DETR trained checkpoints),
+    return it as-is.  Otherwise treat it as a dtmfiles.com asset path and
+    download it (cached after the first fetch).
+    """
+    local = Path(model_path)
+    if local.exists():
+        return str(local)
+    return str(pf.assets.download(model_path, directory=DATA_DIR))
+
+
+def load_model_from_training(training):
+    """Load a model from a training record.
+
+    Reads architecture, labels, variant, checkpoint path from the training's
+    config and dispatches to the correct mozo adapter.  Resolves model_path
+    locally or via dtmfiles download.
+    """
+    cfg = training["config"] if isinstance(training["config"], dict) else json.loads(training["config"])
+    training_id = training["id"]
+    architecture = cfg.get("model_architecture", "rfdetr")
+    class_names = [label["name"] for label in cfg.get("labels", [])]
+    checkpoint = _resolve_model_path(training["model_path"])
+
+    project_type = cfg.get("project_type", "detection")
+    project_type = {"object_detection": "detection", "instance_segmentation": "segmentation"}.get(project_type, project_type)
+
     if architecture == "detectron2":
         return model_manager.get_model(
             'detectron2',
             training_id,
-            checkpoint_path=training["model_path"],
+            checkpoint_path=checkpoint,
             variant=cfg.get("variant", "mask_rcnn_R_50_FPN_3x"),
             class_names=class_names,
             num_classes=len(class_names),
@@ -37,7 +66,7 @@ def _load_model(architecture, training_id, training, cfg, project_type, class_na
     return model_manager.get_model(
         'rfdetr',
         training_id,
-        checkpoint_path=training["model_path"],
+        checkpoint_path=checkpoint,
         model_size=cfg.get("model_size", "base"),
         project_type=project_type,
         resolution=cfg.get("resolution", 560),
@@ -130,8 +159,8 @@ def predict_run():
     if not training["model_path"]:
         return jsonify({"error": "No model checkpoint available"}), 400
 
-    cfg = json.loads(training["config"])
-    labels = cfg.get("labels", [])
+    training["config"] = json.loads(training["config"])
+    labels = training["config"].get("labels", [])
     if not labels:
         return jsonify({"error": "Training config has no labels"}), 400
 
@@ -142,14 +171,8 @@ def predict_run():
 
     img_w, img_h = image.size
 
-    project_type = cfg.get("project_type", "detection")
-    project_type = {"object_detection": "detection", "instance_segmentation": "segmentation"}.get(project_type, project_type)
-
-    class_names = [label["name"] for label in labels]
-    model_architecture = cfg.get("model_architecture", "rfdetr")
-
     try:
-        model = _load_model(model_architecture, training_id, training, cfg, project_type, class_names)
+        model = load_model_from_training(training)
     except Exception as e:
         return jsonify({"error": f"Failed to load model: {e}"}), 500
 
@@ -207,19 +230,13 @@ def predict():
     if not file_row:
         return jsonify({"error": "File not found"}), 404
 
-    cfg = json.loads(training["config"])
-    labels = cfg.get("labels", [])
+    training["config"] = json.loads(training["config"])
+    labels = training["config"].get("labels", [])
     if not labels:
         return jsonify({"error": "Training config has no labels"}), 400
 
-    class_names = [label["name"] for label in labels]
-
-    project_type = cfg.get("project_type", "detection")
-    project_type = {"object_detection": "detection", "instance_segmentation": "segmentation"}.get(project_type, project_type)
-    model_architecture = cfg.get("model_architecture", "rfdetr")
-
     try:
-        model = _load_model(model_architecture, training_id, training, cfg, project_type, class_names)
+        model = load_model_from_training(training)
     except Exception as e:
         return jsonify({"error": f"Failed to load model: {e}"}), 500
 

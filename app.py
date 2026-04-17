@@ -234,8 +234,8 @@ def create_app() -> Flask:
             abort(404)
         training["config"] = json.loads(training.get("config") or "{}")
         training["metrics"] = json.loads(training.get("metrics") or "{}")
-        project = get_project_by_id(training["project_id"])
-        project_name = project["name"] if project else "Unknown"
+        project = get_project_by_id(training["project_id"]) if training["project_id"] else None
+        project_name = project["name"] if project else training["config"].get("name", "Built-in Model")
         return render_template("studio_playground.html", mode="model", training=training, project_name=project_name, workflow=None)
 
     @app.route("/studio/workflow/<workflow_id>")
