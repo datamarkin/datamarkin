@@ -58,9 +58,17 @@ const annotation = {
     accumulatedLabels: [1],
     accumulatedPoints: [],
     croppedBbox: [0, 0, imageWidth, imageHeight],
-    hasLowMask: false,
-    activeKeypointType: null
+    hasLowMask: false
 };
+
+// Exit keypoint placement mode and restore SAM/manual state
+function clearKeypointState() {
+    annotation.activeKeypointType = null;
+    document.querySelectorAll('.is-keypoint-button').forEach(btn => btn.classList.remove('is-active'));
+    const addKpBtn = document.getElementById('add-keypoint');
+    if (addKpBtn) addKpBtn.classList.remove('is-active');
+    if (app.samEnabled) markin.disable();
+}
 
 // SVG element reference
 const svgElement = markin.getSVGElement();
@@ -74,22 +82,20 @@ svgElement.addEventListener('mousedown', function (e) {
 
 // Add click handler to SVG for placing keypoints
 svgElement.addEventListener('click', function (e) {
-    // Only proceed if a keypoint type is selected
     if (!annotation.activeKeypointType) return;
 
     try {
         const selected = markin.getSelectedElement();
         if (!selected) {
-            console.log('Error: No annotation selected');
-            return;
+            return; // MarkinJS handles selection via its own click listener
         }
 
-        // Add the keypoint at the transformed position
+        // Block SAM and MarkinJS from also processing this click
+        e.stopImmediatePropagation();
+
         const keypoint = markin.addKeypoint(null, annotation.activeKeypointType, app.svgX, app.svgY);
-        if (keypoint) {
-            console.log(`Added keypoint "${annotation.activeKeypointType}" at SVG coordinates (${app.svgX}, ${app.svgY})`);
-        } else {
-            console.log('Failed to add keypoint');
+        if (!keypoint) {
+            showToast('Failed to place keypoint.', 'error', 3000);
         }
     } catch (error) {
         console.error('Add keypoint error:', error);
@@ -156,17 +162,12 @@ async function _ensureSAMModel() {
 
 document.addEventListener('DOMContentLoaded', () => {
     // Check SAM model availability; auto-download if needed
-    if (projectType !== 'keypoint-detection' && projectType !== 'image-classification') {
+    if (projectType !== 'image-classification') {
         _ensureSAMModel();
     }
 
     // Setup keypoint buttons
     setupKeypointButtons();
-
-    // Disable SAM for keypoint-detection (markin handles bbox drawing directly)
-    if (projectType === 'keypoint-detection') {
-        toggleSAM();
-    }
 
     zoomist.on('zoom', () => {
         app.zoomistScale = zoomist.transform.scale;
@@ -207,7 +208,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     svgElement.addEventListener('click', (event) => {
-        if (!app.isDragging && app.samEnabled) {
+        if (!app.isDragging && app.samEnabled && !annotation.activeKeypointType) {
             handleSamPointClick();
         }
     });
@@ -303,16 +304,13 @@ function setupKeypointButtons() {
                 const keypointName = this.dataset.keypointName;
 
                 if (annotation.activeKeypointType === keypointName) {
-                    // If clicking the active button, deactivate it
-                    annotation.activeKeypointType = null;
-                    deactivateAllButtons();
-                    console.log('Keypoint placement cancelled');
+                    clearKeypointState();
                 } else {
-                    // Activate this button, deactivate others
+                    // Activating — enter keypoint placement mode
                     deactivateAllButtons();
                     this.classList.add('is-active');
                     annotation.activeKeypointType = keypointName;
-                    console.log(`Ready to place keypoint: ${keypointName}`);
+                    markin.enable();
                 }
             });
         });
@@ -323,11 +321,9 @@ function setupKeypointButtons() {
     if (addKeypointButton) {
         addKeypointButton.addEventListener('click', function () {
             if (annotation.activeKeypointType === "new-point") {
-                // If already active, deactivate
-                annotation.activeKeypointType = null;
-                this.classList.remove('is-active');
+                clearKeypointState();
             } else {
-                // Deactivate other buttons and activate this one
+                // Activating — enter keypoint placement mode
                 const keypointButtons = document.querySelectorAll('.is-keypoint-button');
                 keypointButtons.forEach(btn => {
                     btn.classList.remove('is-active');
@@ -335,7 +331,7 @@ function setupKeypointButtons() {
 
                 this.classList.add('is-active');
                 annotation.activeKeypointType = "new-point";
-                console.log('Ready to place new keypoint');
+                markin.enable();
             }
         });
     }
@@ -427,6 +423,9 @@ function validateAnnotation() {
 function toggleSAM() {
     const samToggle = document.getElementById('samToggle');
     const samToggleIcon = document.getElementById('samToggleIcon');
+
+    // Clear keypoint placement mode if active
+    if (annotation.activeKeypointType) clearKeypointState();
 
     // Reset current annotation regardless of mode switch
     resetAnnotation();
@@ -566,7 +565,7 @@ svgElement.addEventListener('mousemove', async function (e) {
     }
 
     // Always update mask regardless of zoom
-    if (!annotation.firstInitialised && app.samEnabled) {
+    if (!annotation.firstInitialised && app.samEnabled && !annotation.activeKeypointType) {
         annotation.accumulatedPoints = [[app.mouseX, app.mouseY]]
         annotation.annotationCanditate = await debouncedMaskRequest();
         if (annotation.annotationCanditate) {
@@ -761,8 +760,7 @@ function handleLabelButtonClick(event) {
         document.querySelectorAll('.keypoint-group').forEach(group => {
             group.style.display = group.dataset.labelId === labelId ? '' : 'none';
         });
-        annotation.activeKeypointType = null;
-        document.querySelectorAll('.is-keypoint-button').forEach(b => b.classList.remove('is-active'));
+        clearKeypointState();
     }
 }
 

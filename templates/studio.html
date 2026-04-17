@@ -26,12 +26,15 @@
                             <div class="media-content">
                                 <div class="content">
                                     <p>
-                                        <strong>{{ t.project_name | default('Unknown') }}</strong>
+                                        <strong>{{ t.project_name or t.config.name or 'Unknown' }}</strong>
                                         <br>
                                         <small class="has-text-grey">
-                                            {{ cfg.project_type | default('detection') }} ·
-                                            {{ cfg.model_size | default('base') }} ·
-                                            {{ cfg.resolution | default(560) }}px
+                                            {{ cfg.project_type | default('detection') }}
+                                            {% if cfg.model_architecture == 'detectron2' %}
+                                                · {{ cfg.variant | default('detectron2') }}
+                                            {% else %}
+                                                · {{ cfg.model_size | default('base') }} · {{ cfg.resolution | default(560) }}px
+                                            {% endif %}
                                             {% if metrics.best_mAP %} · mAP {{ "%.1f"|format(metrics.best_mAP) }}%{% endif %}
                                         </small>
                                     </p>

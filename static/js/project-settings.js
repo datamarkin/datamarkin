@@ -20,6 +20,11 @@ function addLabelRow() {
         '<div class="keypoint-editor pl-4 pt-1" style="display:none">' +
         '<div class="keypoints-list"></div>' +
         '<button type="button" class="button is-small is-light mt-1" onclick="addKeypointToLabel(this)">+ Add keypoint</button>' +
+        '<div class="skeleton-editor mt-2" style="display:none">' +
+        '<p class="is-size-7 has-text-grey mb-1">Skeleton connections</p>' +
+        '<div class="skeleton-connections-list"></div>' +
+        '<button type="button" class="button is-small is-light mt-1" onclick="addSkeletonConnection(this)">+ Add connection</button>' +
+        '</div>' +
         '</div>';
     list.appendChild(div);
 }
@@ -33,6 +38,42 @@ function addKeypointToLabel(btn) {
         '<div class="control"><input type="color" value="#e74c3c" style="height:32px;width:40px;border:1px solid #dbdbdb;border-radius:4px;cursor:pointer;"></div>' +
         '<div class="control"><button type="button" class="button is-small is-light" onclick="this.closest(\'.keypoint-row\').remove()">×</button></div>';
     kpList.appendChild(kpRow);
+}
+
+function addSkeletonConnection(btn) {
+    var wrapper = btn.closest('.label-row-wrapper');
+    var kpNames = [];
+    wrapper.querySelectorAll('.keypoints-list .keypoint-row').forEach(function (kpRow, i) {
+        var name = kpRow.querySelector('input[type="text"]').value.trim() || ('Point ' + i);
+        kpNames.push({id: i, name: name});
+    });
+    if (kpNames.length < 2) return;
+
+    var connList = btn.closest('.skeleton-editor').querySelector('.skeleton-connections-list');
+    var row = document.createElement('div');
+    row.className = 'field has-addons mt-1 mb-0 skeleton-row';
+
+    var fromSelect = document.createElement('select');
+    fromSelect.className = 'skeleton-from';
+    var toSelect = document.createElement('select');
+    toSelect.className = 'skeleton-to';
+    kpNames.forEach(function (kp) {
+        var o1 = document.createElement('option');
+        o1.value = kp.id; o1.textContent = kp.name;
+        fromSelect.appendChild(o1);
+        var o2 = document.createElement('option');
+        o2.value = kp.id; o2.textContent = kp.name;
+        toSelect.appendChild(o2);
+    });
+
+    row.innerHTML =
+        '<div class="control"><div class="select is-small"></div></div>' +
+        '<div class="control"><span class="button is-small is-static">&rarr;</span></div>' +
+        '<div class="control"><div class="select is-small"></div></div>' +
+        '<div class="control"><button type="button" class="button is-small is-light" onclick="this.closest(\'.skeleton-row\').remove()">&times;</button></div>';
+    row.querySelectorAll('.select')[0].appendChild(fromSelect);
+    row.querySelectorAll('.select')[1].appendChild(toSelect);
+    connList.appendChild(row);
 }
 
 (function () {
@@ -91,7 +132,29 @@ function addKeypointToLabel(btn) {
         document.querySelectorAll('#labels-list .label-row-wrapper').forEach(function (row, i) {
             var labelName = row.querySelector('.label-name').value.trim();
             var color = row.querySelector('.label-color').value.replace('#', '');
-            if (labelName) labels.push({id: i, name: labelName, color: color});
+            if (!labelName) return;
+
+            var labelObj = {id: i, name: labelName, color: color};
+
+            var keypoints = [];
+            row.querySelectorAll('.keypoints-list .keypoint-row').forEach(function (kpRow, kpIndex) {
+                var kpName = kpRow.querySelector('input[type="text"]').value.trim();
+                var kpColor = kpRow.querySelector('input[type="color"]').value.replace('#', '');
+                if (kpName) keypoints.push({id: kpIndex, name: kpName, color: kpColor});
+            });
+
+            if (keypoints.length > 0) {
+                labelObj.keypoints = keypoints;
+                var skeleton = [];
+                row.querySelectorAll('.skeleton-connections-list .skeleton-row').forEach(function (connRow) {
+                    var from = parseInt(connRow.querySelector('.skeleton-from').value, 10);
+                    var to = parseInt(connRow.querySelector('.skeleton-to').value, 10);
+                    if (!isNaN(from) && !isNaN(to) && from !== to) skeleton.push([from, to]);
+                });
+                labelObj.skeleton = skeleton;
+            }
+
+            labels.push(labelObj);
         });
         fetch('/project/' + projectId + '/settings', {
             method: 'POST',

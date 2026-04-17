@@ -369,6 +369,43 @@
                                                 onclick="addKeypointToLabel(this)">
                                             + Add keypoint
                                         </button>
+                                        <div class="skeleton-editor mt-2" style="{% if label.keypoints is defined and label.keypoints %}{% else %}display:none{% endif %}">
+                                            <p class="is-size-7 has-text-grey mb-1">Skeleton connections</p>
+                                            <div class="skeleton-connections-list">
+                                                {% if label.skeleton is defined and label.skeleton and label.keypoints is defined %}
+                                                    {% for conn in label.skeleton %}
+                                                        <div class="field has-addons mt-1 mb-0 skeleton-row">
+                                                            <div class="control">
+                                                                <div class="select is-small">
+                                                                    <select class="skeleton-from">
+                                                                        {% for kp in label.keypoints %}
+                                                                            <option value="{{ kp.id }}" {% if kp.id == conn[0] %}selected{% endif %}>{{ kp.name }}</option>
+                                                                        {% endfor %}
+                                                                    </select>
+                                                                </div>
+                                                            </div>
+                                                            <div class="control"><span class="button is-small is-static">&rarr;</span></div>
+                                                            <div class="control">
+                                                                <div class="select is-small">
+                                                                    <select class="skeleton-to">
+                                                                        {% for kp in label.keypoints %}
+                                                                            <option value="{{ kp.id }}" {% if kp.id == conn[1] %}selected{% endif %}>{{ kp.name }}</option>
+                                                                        {% endfor %}
+                                                                    </select>
+                                                                </div>
+                                                            </div>
+                                                            <div class="control">
+                                                                <button type="button" class="button is-small is-light" onclick="this.closest('.skeleton-row').remove()">&times;</button>
+                                                            </div>
+                                                        </div>
+                                                    {% endfor %}
+                                                {% endif %}
+                                            </div>
+                                            <button type="button" class="button is-small is-light mt-1"
+                                                    onclick="addSkeletonConnection(this)">
+                                                + Add connection
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
                             {% endfor %}
