@@ -46,6 +46,8 @@
         var isRunning = false;
         var activeIndex = -1;
         var keypointNames = null; // discovered from first detection with keypoints
+        var isVideoMode = false;
+        var videoFile = null;
 
         dropZone.addEventListener('drop', function (e) {
             e.preventDefault();
@@ -58,9 +60,12 @@
         });
 
         function loadFiles(fileList) {
-            var files = Array.from(fileList).filter(function (f) { return f.type.startsWith('image/'); });
-            if (!files.length) return;
+            if (isRunning) return;
+            var allFiles = Array.from(fileList);
+            var videos = allFiles.filter(function (f) { return f.type.startsWith('video/'); });
+            var images = allFiles.filter(function (f) { return f.type.startsWith('image/'); });
 
+            // Reset common state
             batchItems = [];
             activeIndex = -1;
             imagesCol.innerHTML = '';
@@ -70,7 +75,21 @@
             csvWrap.style.display = 'none';
             resultsSummary.textContent = '';
 
-            files.forEach(function (file) {
+            if (videos.length > 0) {
+                isVideoMode = true;
+                videoFile = videos[0];
+                document.getElementById('video-controls').style.display = '';
+                dropZoneText.textContent = videoFile.name;
+                return;
+            }
+
+            isVideoMode = false;
+            videoFile = null;
+            document.getElementById('video-controls').style.display = 'none';
+
+            if (!images.length) return;
+
+            images.forEach(function (file) {
                 var item = { file: file, fileName: file.name, dataURI: null, annotatedImage: null, detections: null, cardEl: null };
                 batchItems.push(item);
                 var reader = new FileReader();
@@ -78,7 +97,7 @@
                 reader.readAsDataURL(file);
             });
 
-            dropZoneText.textContent = files.length === 1 ? files[0].name : files.length + ' images selected';
+            dropZoneText.textContent = images.length === 1 ? images[0].name : images.length + ' images selected';
         }
 
         function highlightImage(idx) {
@@ -95,8 +114,177 @@
             if (firstMatch) firstMatch.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         }
 
+        // ---- Video inference ----
+        function runVideo() {
+            if (!videoFile) { showError('Please drop a video first.'); return; }
+            if (isRunning) return;
+            hideError();
+            isRunning = true;
+
+            var frameSkip = parseInt(document.getElementById('frame-skip').value) || 5;
+            var video = document.createElement('video');
+            video.muted = true;
+            video.preload = 'auto';
+            var objectUrl = URL.createObjectURL(videoFile);
+            video.src = objectUrl;
+
+            video.addEventListener('error', function () {
+                showError('Could not load video file.');
+                isRunning = false;
+                runBtn.disabled = false;
+                runBtnText.textContent = 'Run';
+                URL.revokeObjectURL(objectUrl);
+            });
+
+            video.addEventListener('loadedmetadata', function () {
+                var duration = video.duration;
+                var fps = 30;
+                var timeStep = frameSkip / fps;
+                var totalSteps = Math.ceil(duration / timeStep);
+
+                emptyState.style.display = 'none';
+                batchResults.style.display = '';
+                imagesCol.innerHTML = '';
+                resultsTbody.innerHTML = '';
+                keypointNames = null;
+                var thead = resultsTbody.closest('table').querySelector('thead tr');
+                var BASE_COL = 5;
+                while (thead.children.length > BASE_COL) thead.removeChild(thead.lastChild);
+                csvWrap.style.display = 'none';
+                resultsSummary.textContent = '';
+                runBtn.disabled = true;
+                batchItems = [];
+
+                // Single frame display
+                var frameImg = document.createElement('img');
+                frameImg.style.cssText = 'display:block;width:100%;border-radius:6px;';
+                imagesCol.appendChild(frameImg);
+                var progressEl = document.createElement('p');
+                progressEl.className = 'is-size-7 has-text-grey mt-2 has-text-centered';
+                imagesCol.appendChild(progressEl);
+
+                var canvas = document.createElement('canvas');
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                var ctx2d = canvas.getContext('2d');
+
+                var currentTime = 0;
+                var processed = 0;
+                var globalRow = 0;
+
+                function formatTs(sec) {
+                    var m = Math.floor(sec / 60);
+                    var s = sec % 60;
+                    return m + ':' + (s < 10 ? '0' : '') + s.toFixed(1);
+                }
+
+                function seekAndExtract(t, cb) {
+                    function handler() {
+                        video.removeEventListener('seeked', handler);
+                        ctx2d.drawImage(video, 0, 0);
+                        canvas.toBlob(function (blob) { cb(blob); }, 'image/jpeg', 0.85);
+                    }
+                    video.addEventListener('seeked', handler);
+                    video.currentTime = Math.min(t, duration - 0.001);
+                }
+
+                function processNext() {
+                    if (currentTime >= duration || !isRunning) { finish(); return; }
+
+                    seekAndExtract(currentTime, function (blob) {
+                        if (!blob) { currentTime += timeStep; processNext(); return; }
+
+                        processed++;
+                        var ts = formatTs(currentTime);
+                        runBtnText.textContent = 'Frame ' + processed + '/' + totalSteps + '\u2026';
+                        progressEl.textContent = processed + ' / ~' + totalSteps + ' frames';
+
+                        var frameItem = { file: null, fileName: ts, dataURI: null, annotatedImage: null, detections: null, cardEl: null };
+                        batchItems.push(frameItem);
+                        var idx = batchItems.length - 1;
+
+                        var formData = new FormData();
+                        formData.append('file', blob, 'frame.jpg');
+                        formData.append('training_id', TRAINING_ID);
+                        formData.append('threshold', threshRange.value);
+
+                        fetch('/api/predict/run', { method: 'POST', body: formData })
+                            .then(function (resp) {
+                                return resp.json().then(function (data) {
+                                    if (!resp.ok) throw new Error(data.error || 'Inference failed');
+                                    return data;
+                                });
+                            })
+                            .then(function (data) {
+                                frameItem.detections = data.detections;
+                                frameImg.src = data.annotated_image;
+
+                                // Dynamic keypoint columns
+                                if (!keypointNames && data.detections) {
+                                    var kpDet = data.detections.find(function (d) { return d.keypoints && d.keypoints.length; });
+                                    if (kpDet) {
+                                        keypointNames = kpDet.keypoints.map(function (kp) { return kp.name; });
+                                        var frag = document.createDocumentFragment();
+                                        keypointNames.forEach(function (name) {
+                                            var thX = document.createElement('th'); thX.textContent = name + '-x'; frag.appendChild(thX);
+                                            var thY = document.createElement('th'); thY.textContent = name + '-y'; frag.appendChild(thY);
+                                        });
+                                        thead.appendChild(frag);
+                                    }
+                                }
+
+                                // Table rows
+                                var rowFrag = document.createDocumentFragment();
+                                (data.detections || []).forEach(function (det) {
+                                    globalRow++;
+                                    var row = document.createElement('tr');
+                                    row.dataset.imageIndex = idx;
+                                    var coords = det.bbox.map(function (v) { return Math.round(v); }).join(', ');
+                                    var html =
+                                        '<td>' + globalRow + '</td>' +
+                                        '<td>' + escapeHtml(ts) + '</td>' +
+                                        '<td>' + escapeHtml(det.class_name || 'unknown') + '</td>' +
+                                        '<td>' + (det.confidence ? Math.round(det.confidence * 100) + '%' : '\u2014') + '</td>' +
+                                        '<td style="font-family:monospace">' + coords + '</td>';
+                                    if (keypointNames) {
+                                        var kpMap = buildKeypointMap(det);
+                                        keypointNames.forEach(function (name) {
+                                            var kp = kpMap[name];
+                                            html += '<td style="font-family:monospace">' + (kp ? Math.round(kp.x) : '\u2014') + '</td>';
+                                            html += '<td style="font-family:monospace">' + (kp ? Math.round(kp.y) : '\u2014') + '</td>';
+                                        });
+                                    }
+                                    row.innerHTML = html;
+                                    rowFrag.appendChild(row);
+                                });
+                                resultsTbody.appendChild(rowFrag);
+
+                                currentTime += timeStep;
+                                processNext();
+                            })
+                            .catch(function () {
+                                currentTime += timeStep;
+                                processNext();
+                            });
+                    });
+                }
+
+                function finish() {
+                    URL.revokeObjectURL(objectUrl);
+                    isRunning = false;
+                    runBtnText.textContent = 'Run';
+                    runBtn.disabled = false;
+                    resultsSummary.textContent = globalRow + ' detection' + (globalRow !== 1 ? 's' : '') + ' across ' + processed + ' frame' + (processed !== 1 ? 's' : '');
+                    if (globalRow > 0) csvWrap.style.display = '';
+                }
+
+                processNext();
+            });
+        }
+
         // ---- Run ----
         runBtn.addEventListener('click', function () {
+            if (isVideoMode) { runVideo(); return; }
             if (!batchItems.length) { showError('Please drop images first.'); return; }
             if (isRunning) return;
             hideError();

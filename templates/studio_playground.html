@@ -51,14 +51,31 @@
                            type="range" min="0.05" max="0.95" step="0.05" value="0.50">
                 </div>
             </div>
+            <div id="video-controls" style="display:none">
+                <div class="field">
+                    <label class="label is-small">Process every</label>
+                    <div class="control">
+                        <div class="select is-small is-fullwidth">
+                            <select id="frame-skip">
+                                <option value="1">Every frame</option>
+                                <option value="3">Every 3rd frame</option>
+                                <option value="5" selected>Every 5th frame</option>
+                                <option value="10">Every 10th frame</option>
+                                <option value="15">Every 15th frame</option>
+                                <option value="30">Every 30th frame (~1/sec)</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </div>
             {% endif %}
 
             <div class="field">
-                <label class="label is-small">Image</label>
+                <label class="label is-small">Media</label>
                 <div class="drop-zone" id="drop-zone">
                     <span class="drop-zone-icon">+</span>
-                    <span class="drop-zone-text" id="drop-zone-text">Drop image here or click to browse</span>
-                    <input type="file" id="file-input" accept="image/*" multiple style="display:none">
+                    <span class="drop-zone-text" id="drop-zone-text">Drop images or video</span>
+                    <input type="file" id="file-input" accept="image/*,video/*" multiple style="display:none">
                 </div>
             </div>
 
@@ -76,7 +93,7 @@
         {% if mode == 'model' %}
         <div class="inference-results" id="inference-results">
             <div id="empty-state" class="inference-empty-state" style="margin:1.25rem">
-                <p class="has-text-grey-light">Drop images and click Run to see results</p>
+                <p class="has-text-grey-light">Drop images or video and click Run to see results</p>
             </div>
 
             <div id="batch-results" class="batch-results" style="display:none">

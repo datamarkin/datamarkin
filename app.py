@@ -124,8 +124,14 @@ def create_app() -> Flask:
         import agentui
         from agentui.api.server import bp as agentui_bp
         from flask import jsonify as _jsonify, request as _request
-        from tools.agentui_tools import DatamarkinLocalModel, METADATA as DM_METADATA
+        from tools.agentui_tools import (
+            DatamarkinLocalModel, METADATA as DM_METADATA,
+            DatasetInput, DATASET_INPUT_METADATA,
+            DatasetSave, DATASET_SAVE_METADATA,
+        )
         agentui.register_tool(DatamarkinLocalModel, DM_METADATA)
+        agentui.register_tool(DatasetInput, DATASET_INPUT_METADATA)
+        agentui.register_tool(DatasetSave, DATASET_SAVE_METADATA)
 
         # In frozen app, the blueprint's template/static paths derived from __file__
         # are wrong because the module is loaded from the PYZ archive. Override with

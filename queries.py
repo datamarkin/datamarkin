@@ -229,6 +229,17 @@ def update_file_analyzed_labels(file_id: str, analyzed_labels_json: str) -> None
     conn.close()
 
 
+def update_project_labels(project_id: str, labels: list) -> None:
+    import json
+    conn = get_db()
+    conn.execute(
+        "UPDATE projects SET labels = ?, updated_at = ? WHERE id = ?",
+        (json.dumps(labels), now(), project_id),
+    )
+    conn.commit()
+    conn.close()
+
+
 def get_project_files(project_id: str) -> list[dict]:
     conn = get_db()
     rows = conn.execute(
