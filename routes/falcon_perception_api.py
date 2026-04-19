@@ -2,11 +2,11 @@
 
 import gc
 import json
+import sys
 import threading
 import time
 import urllib.request
 
-import mlx.core as mx
 import pixelflow as pf
 from flask import Blueprint, jsonify, request
 from PIL import Image as PILImage
@@ -18,6 +18,11 @@ from queries import get_file_by_id, get_project_by_id, get_project_files, update
 from routes.download_api import update_download_state, clear_download_state
 from routes.predict_route import mask_to_norm_polygon
 from utils.dedup import deduplicate_objects
+
+_USE_MLX = sys.platform == "darwin"
+
+if _USE_MLX:
+    import mlx.core as mx
 
 falcon_perception_api = Blueprint("falcon_perception_api", __name__, url_prefix="/api/falcon")
 
@@ -103,18 +108,39 @@ def _ensure_loaded():
     _download_falcon_files()
 
     from falcon_perception import load_and_prepare_model
-    from falcon_perception.mlx.batch_inference import BatchInferenceEngine
 
-    model, _tokenizer, _model_args = load_and_prepare_model(
-        hf_local_dir=str(_FALCON_LOCAL), dtype="float16", backend="mlx",
-    )
+    if _USE_MLX:
+        from falcon_perception.mlx.batch_inference import BatchInferenceEngine
+        model, _tokenizer, _model_args = load_and_prepare_model(
+            hf_local_dir=str(_FALCON_LOCAL), dtype="float16", backend="mlx",
+        )
+    else:
+        from falcon_perception.batch_inference import BatchInferenceEngine
+        model, _tokenizer, _model_args = load_and_prepare_model(
+            hf_local_dir=str(_FALCON_LOCAL), dtype="float16", backend="torch",
+        )
+
     _engine = BatchInferenceEngine(model, _tokenizer)
+
+
+def _clear_gpu_cache():
+    """Clear GPU memory cache for the active backend."""
+    if _USE_MLX:
+        mx.metal.clear_cache()
+    else:
+        import torch
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
 
 
 def _predict_single(pil_image, query, task="segmentation", max_new_tokens=1014):
     """Run falcon-perception for one query on one image. Returns pf Detections."""
     from falcon_perception import build_prompt_for_task
-    from falcon_perception.mlx.batch_inference import process_batch_and_generate
+
+    if _USE_MLX:
+        from falcon_perception.mlx.batch_inference import process_batch_and_generate
+    else:
+        from falcon_perception.batch_inference import process_batch_and_generate
 
     prompt = build_prompt_for_task(query, task)
     batch = process_batch_and_generate(
@@ -131,7 +157,7 @@ def _predict_single(pil_image, query, task="segmentation", max_new_tokens=1014):
     detections = pf.detections.from_falcon_perception(aux, image_size=(w, h), label=query)
 
     del aux_outputs, aux, batch
-    mx.metal.clear_cache()
+    _clear_gpu_cache()
 
     return detections
 
@@ -217,7 +243,7 @@ def _auto_annotate_file(file_row, labels, force=False):
         del detections
 
     gc.collect()
-    mx.metal.clear_cache()
+    _clear_gpu_cache()
 
     new_objects = deduplicate_objects(all_new, existing)
     merged = existing + new_objects

@@ -1,6 +1,7 @@
 import io
 import json
 import os
+import shutil
 import signal
 import subprocess
 import sys
@@ -117,7 +118,10 @@ def _prepare_coco_dataset(training_id: str, project_id: str, db) -> str:
             dst_path = split_dir / img_filename
 
             if not dst_path.exists():
-                os.symlink(src_path, dst_path)
+                if sys.platform == "win32":
+                    shutil.copy2(src_path, dst_path)
+                else:
+                    os.symlink(src_path, dst_path)
 
             coco_images.append({
                 "id": img_idx,
