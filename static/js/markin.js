@@ -806,7 +806,13 @@ var MarkinJS = (function () {
             // Handle keyboard events
             handleKeyDown(event) {
                 if (!this.enabled) return;
-                
+
+                // Don't intercept keys while the user is typing in a form field
+                const targetTag = event.target && event.target.tagName && event.target.tagName.toLowerCase();
+                if (targetTag === 'input' || targetTag === 'textarea' || targetTag === 'select' || (event.target && event.target.isContentEditable)) {
+                    return;
+                }
+
                 // Handle undo/redo if history is enabled (should work regardless of selection)
                 if (event.key === 'z' && (event.ctrlKey || event.metaKey)) {
                     if (event.shiftKey) {
