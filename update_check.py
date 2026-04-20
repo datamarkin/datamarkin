@@ -33,6 +33,7 @@ def _asset_suffix():
         return ".tar.gz"
 
 _latest = None
+_done = False
 _lock = threading.Lock()
 
 _API_URL = f"https://api.github.com/repos/{GITHUB_OWNER}/{GITHUB_REPO}/releases/latest"
@@ -40,7 +41,7 @@ _API_URL = f"https://api.github.com/repos/{GITHUB_OWNER}/{GITHUB_REPO}/releases/
 
 def check_for_update():
     """Check GitHub for a newer release. Runs in a background thread."""
-    global _latest
+    global _latest, _done
     time.sleep(5)
     try:
         req = urllib.request.Request(_API_URL, headers={"Accept": "application/vnd.github+json"})
@@ -68,12 +69,19 @@ def check_for_update():
             }
     except Exception:
         pass
+    finally:
+        _done = True
 
 
 def get_update_info():
     """Return cached update info, or None if up to date / not checked yet."""
     with _lock:
         return _latest
+
+
+def is_check_done():
+    """Return True once the background check has completed (success or failure)."""
+    return _done
 
 
 def download_update():
