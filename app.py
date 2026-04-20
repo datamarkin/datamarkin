@@ -263,14 +263,14 @@ def create_app() -> Flask:
         return files_route(file_id)
 
     # ── Update check API ────────────────────────────────────────────────
-    from update_check import get_update_info, download_update
+    from update_check import get_update_info, download_update, is_check_done
 
     @app.route("/api/update-check")
     def update_check():
         info = get_update_info()
         if info:
             return jsonify({"available": True, **info})
-        return jsonify({"available": False})
+        return jsonify({"available": False, "pending": not is_check_done()})
 
     @app.route("/api/update-download", methods=["POST"])
     def update_download():
