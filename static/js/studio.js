@@ -28,6 +28,14 @@ const zoomistContainerHeight = zoomistContainer.getBoundingClientRect().height;
 // Handle drag vs. click conflict between Zoomist and VivaSVG
 const MIN_DRAG_DISTANCE = 5; // pixels
 
+// Keyboard shortcuts should not fire while the user is typing in a form field
+function isTypingInInput(event) {
+    const el = event.target;
+    if (!el) return false;
+    const tag = el.tagName && el.tagName.toLowerCase();
+    return tag === 'input' || tag === 'textarea' || tag === 'select' || el.isContentEditable;
+}
+
 
 let app = {
     previousBbox: null,
@@ -45,6 +53,7 @@ let app = {
     scaleY: 1,
     simplificationTolerance: 2.0,  // Polygon simplification
     samEnabled: true,               // SAM mode enabled
+    isAutoAnnotating: false,        // Falcon auto-annotate request in flight
 }
 
 
@@ -215,6 +224,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Add keyboard shortcut event listeners
     document.addEventListener('keydown', async (event) => {
+        if (isTypingInInput(event)) return;
         if (event.key === 'Enter') {
             if (annotation.firstInitialised) {
                 validateAnnotation();
@@ -232,9 +242,27 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Add keyboard shortcut event listeners
     document.addEventListener('keydown', async (event) => {
+        if (isTypingInInput(event)) return;
         if (event.key === 'd') {
             toggleSAM();
         }
+    });
+
+    // Left/Right arrows navigate to previous/next image — but defer to markin
+    // when an annotation is selected (markin uses arrows to nudge the element).
+    document.addEventListener('keydown', (event) => {
+        if (isTypingInInput(event)) return;
+        if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+        if (markin.getSelectedElement()) return;
+
+        const nextIndex = event.key === 'ArrowRight'
+            ? currentIndex + 1
+            : currentIndex - 1;
+
+        if (nextIndex < 0 || nextIndex >= fileIds.length) return;
+
+        event.preventDefault();
+        window.location.href = '/project/' + projectId + '/' + fileIds[nextIndex];
     });
 
     document.getElementById('reset-annotations').addEventListener('click', async () => {
@@ -250,6 +278,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         console.log("Annotation validate triggered");
     });
+
+    updateToolbarUI();
 })
 
 function updateZoomist() {
@@ -363,7 +393,7 @@ async function handleSamPointClick() {
             console.log("Sam point clicked outside polygon")
         }
     }
-    manageLabelButtonsState();
+    updateToolbarUI();
 }
 
 function createPointElement(x, y, color) {
@@ -421,9 +451,6 @@ function validateAnnotation() {
 }
 
 function toggleSAM() {
-    const samToggle = document.getElementById('samToggle');
-    const samToggleIcon = document.getElementById('samToggleIcon');
-
     // Clear keypoint placement mode if active
     if (annotation.activeKeypointType) clearKeypointState();
 
@@ -431,20 +458,13 @@ function toggleSAM() {
     resetAnnotation();
 
     if (app.samEnabled) {
-        // Switching from SAM mode to manual mode
         app.samEnabled = false;
-        samToggle.classList.toggle('is-active');
-        if (samToggleIcon) samToggleIcon.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6"> <path stroke-linecap="round" stroke-linejoin="round" d="M3.98 8.223A10.477 10.477 0 0 0 1.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.451 10.451 0 0 1 12 4.5c4.756 0 8.773 3.162 10.065 7.498a10.522 10.522 0 0 1-4.293 5.774M6.228 6.228 3 3m3.228 3.228 3.65 3.65m7.894 7.894L21 21m-3.228-3.228-3.65-3.65m0 0a3 3 0 1 0-4.243-4.243m4.242 4.242L9.88 9.88" /> </svg>';
-        // Enable VivaSVG for manual annotation mode
         markin.enable();
     } else {
-        // Switching from manual mode to SAM mode
         app.samEnabled = true;
-        samToggle.classList.toggle('is-active');
-        if (samToggleIcon) samToggleIcon.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6"><path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" /><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" /></svg>';
-        // Disable VivaSVG during SAM mode
         markin.disable();
     }
+    updateToolbarUI();
     console.log("SAM mode:", app.samEnabled ? "enabled" : "disabled");
 }
 
@@ -462,6 +482,7 @@ function resetAnnotation() {
             element.parentNode.removeChild(element);
         });
     }
+    updateToolbarUI();
 }
 
 
@@ -717,14 +738,21 @@ function updateGuidelines() {
     horizontalLine.setAttribute("stroke-dasharray", `${dashArrayX},${dashArrayY}`);
 }
 
-function manageLabelButtonsState() {
-    if (annotation.firstInitialised) {
-        document.getElementById('reset-annotations').disabled = false;
-        document.getElementById('validate-annotations').disabled = false;
-    } else {
-        document.getElementById('reset-annotations').disabled = true;
-        document.getElementById('validate-annotations').disabled = true;
-    }
+function updateToolbarUI() {
+    const samOn = app.samEnabled;
+    const pending = annotation.firstInitialised;
+    const loading = app.isAutoAnnotating;
+
+    const samBtn = document.getElementById('samToggle');
+    samBtn.classList.toggle('is-active', samOn);
+    samBtn.querySelectorAll('[data-sam-state="on"]').forEach(el => el.classList.toggle('is-hidden', !samOn));
+    samBtn.querySelectorAll('[data-sam-state="off"]').forEach(el => el.classList.toggle('is-hidden', samOn));
+
+    const canResolveCandidate = samOn && pending;
+    document.getElementById('validate-annotations').disabled = !canResolveCandidate;
+    document.getElementById('reset-annotations').disabled = !canResolveCandidate;
+
+    document.getElementById('falcon-auto-annotate').disabled = pending || loading;
 }
 
 // Function to handle label button clicks
@@ -886,7 +914,8 @@ async function requestNewEmbedding() {
 document.getElementById('falcon-auto-annotate')?.addEventListener('click', async function() {
     const btn = this;
     btn.classList.add('is-loading');
-    btn.disabled = true;
+    app.isAutoAnnotating = true;
+    updateToolbarUI();
     try {
         if (window.startDownloadSSE) window.startDownloadSSE();
         const resp = await fetch('/api/falcon/auto_annotate', {
@@ -942,6 +971,7 @@ document.getElementById('falcon-auto-annotate')?.addEventListener('click', async
         showToast('Auto annotate failed. Please check that the model is available.', 'error');
     } finally {
         btn.classList.remove('is-loading');
-        btn.disabled = false;
+        app.isAutoAnnotating = false;
+        updateToolbarUI();
     }
 });

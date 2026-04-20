@@ -14,11 +14,15 @@
         </div>
         <div class="titlebar-center">
             <div class="buttons has-addons is-centered m-0 pr-3">
-                <button id="samToggle" class="button is-small is-app">
-                    <span class="icon is-small">
+                <button id="samToggle" class="button is-small is-app is-active">
+                    <span class="icon is-small" data-sam-state="on">
                         {% include 'icons/eye-slash.svg' %}
                     </span>
-                    <span>Pause</span>
+                    <span class="icon is-small is-hidden" data-sam-state="off">
+                        {% include 'icons/eye.svg' %}
+                    </span>
+                    <span data-sam-state="on">Pause</span>
+                    <span data-sam-state="off" class="is-hidden">Resume</span>
                 </button>
             </div>
             <div class="buttons has-addons is-centered m-0">
@@ -28,7 +32,7 @@
                     </span>
                     <span>Validate</span>
                 </button>
-                <button id="reset-annotations" class="button is-small is-light">
+                <button id="reset-annotations" disabled="" class="button is-small is-light">
                     <span class="icon is-small">
                         {% include 'icons/x-mark.svg' %}
                     </span>
