@@ -252,11 +252,18 @@ def generate_polygon(bbox):
 
 
 def generate_keypoints_for_bbox(bbox, keypoint_defs):
-    """Generate keypoints distributed vertically through a bounding box."""
+    """Generate keypoints distributed vertically through a bounding box.
+
+    Simulates realistic annotations: ~10% of keypoints are omitted entirely
+    (not labeled), ~15% are marked occluded (v=1), the rest are visible.
+    """
     x_min, y_min, x_max, y_max = bbox
     n = len(keypoint_defs)
     result = []
     for i, kp_def in enumerate(keypoint_defs):
+        roll = random.random()
+        if roll < 0.10:
+            continue  # not labeled — omit from array
         # Distribute vertically with slight randomness
         frac = (i + 0.5) / n
         ky = y_min + (y_max - y_min) * frac + random.gauss(0, (y_max - y_min) * 0.05)
@@ -264,7 +271,10 @@ def generate_keypoints_for_bbox(bbox, keypoint_defs):
         # Clamp within bbox
         kx = max(x_min, min(x_max, kx))
         ky = max(y_min, min(y_max, ky))
-        result.append({"id": kp_def["id"], "point": [round(kx, 4), round(ky, 4)]})
+        entry = {"id": kp_def["id"], "point": [round(kx, 4), round(ky, 4)]}
+        if roll < 0.25:
+            entry["v"] = 1  # occluded
+        result.append(entry)
     return result
 
 
