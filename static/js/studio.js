@@ -866,7 +866,14 @@ async function requestMask() {
         });
 
         if (!response.ok) {
-            throw new Error(`HTTP error! Status: ${response.status}`);
+            let detail = `Status: ${response.status}`;
+            try {
+                const errBody = await response.json();
+                if (errBody && errBody.error && errBody.error.message) {
+                    detail = `${errBody.error.type || 'Error'}: ${errBody.error.message}`;
+                }
+            } catch (_) { /* non-JSON body */ }
+            throw new Error(detail);
         }
 
         const result = await response.json();
